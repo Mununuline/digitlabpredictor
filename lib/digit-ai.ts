@@ -82,10 +82,15 @@ export function scanDigits(points: TickPoint[]): DigitAIReview {
       rowTotals[digits[j]]++;
     }
     const current = digits[i];
-    if (rowTotals[current] < 20) continue;
+    // Score only the opportunities that would have passed the same
+    // support/confidence gates used by the live paper decision.
+    const supportAtDecision = rowTotals[current];
+    if (supportAtDecision < 30) continue;
     const row = matrix[current];
     let best = 0;
     for (let d = 1; d < 10; d++) if (row[d] > row[best]) best = d;
+    const confidenceAtDecision = (row[best] + 1) / (supportAtDecision + 10) * 100;
+    if (confidenceAtDecision < 13) continue;
     if (best === digits[i + 1]) correct++;
     evaluated++;
   }
