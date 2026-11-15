@@ -2,7 +2,7 @@ import type { TickPoint } from "@/lib/digits";
 
 const DB_NAME = "digitlab-research";
 const STORE_NAME = "ticks";
-const DB_VERSION = 1;
+const DB_VERSION = 2;
 
 export type StoredTick = TickPoint & { symbol: string };
 
