@@ -38,6 +38,52 @@ function digitOf(tick: TickPoint): number {
   );
 }
 
+
+type MarketReview = {
+  sample: number; chiSquare: number; maxDeviation: number; entropy: number;
+  repeatRate: number; longestStreak: number; recentShift: number;
+  status: string; summary: string;
+};
+
+function reviewMarket(points: TickPoint[]): MarketReview {
+  const digits = points.map(digitOf);
+  const n = digits.length;
+  const counts = Array.from({ length: 10 }, () => 0);
+  digits.forEach((d) => counts[d]++);
+  const expected = n / 10;
+  const chiSquare = n ? counts.reduce((sum, count) => sum + ((count - expected) ** 2) / expected, 0) : 0;
+  const maxDeviation = n ? Math.max(...counts.map((count) => Math.abs((count / n) * 100 - 10))) : 0;
+  const entropy = n ? -counts.reduce((sum, count) => {
+    if (!count) return sum;
+    const p = count / n;
+    return sum + p * Math.log2(p);
+  }, 0) / Math.log2(10) : 0;
+  let repeats = 0;
+  let longestStreak = 0;
+  let run = 0;
+  for (let i = 0; i < digits.length; i++) {
+    if (i > 0 && digits[i] === digits[i - 1]) repeats++;
+    run = i > 0 && digits[i] === digits[i - 1] ? run + 1 : 1;
+    longestStreak = Math.max(longestStreak, run);
+  }
+  const recent = digits.slice(-100);
+  const prior = digits.slice(-500, -100);
+  const recentCounts = Array.from({ length: 10 }, () => 0);
+  const priorCounts = Array.from({ length: 10 }, () => 0);
+  recent.forEach((d) => recentCounts[d]++);
+  prior.forEach((d) => priorCounts[d]++);
+  const recentShift = recent.length && prior.length
+    ? Math.max(...recentCounts.map((count, i) => Math.abs(count / recent.length - priorCounts[i] / prior.length) * 100))
+    : 0;
+  const status = n < 200 ? "BUILDING SAMPLE" : chiSquare >= 16.92 ? "DISTRIBUTION DEVIATION" : "NO STRONG DEVIATION";
+  const summary = n < 200
+    ? "Collecting a larger sample before comparing the digit distribution."
+    : chiSquare >= 16.92
+      ? "The sample differs from a perfectly uniform 10% split. This is descriptive evidence only, not a next-tick edge."
+      : "No large overall departure from a uniform 10% split is visible in this sample.";
+  return { sample: n, chiSquare, maxDeviation, entropy, repeatRate: n > 1 ? repeats / (n - 1) * 100 : 0, longestStreak, recentShift, status, summary };
+}
+
 export default function Home() {
   const [market, setMarket] = useState("1HZ100V");
   const [ticks, setTicks] = useState<TickPoint[]>([]);
@@ -53,6 +99,7 @@ export default function Home() {
 
   const stats = useMemo(() => summarizeDigits(ticks, 2), [ticks]);
   const latestDigits = useMemo(() => ticks.slice(-30).map(digitOf), [ticks]);
+  const review = useMemo(() => reviewMarket(ticks), [ticks]);
 
   useEffect(() => {
     if (!connectRequested) return;
@@ -311,22 +358,26 @@ export default function Home() {
         </article>
 
         <aside className="panel signal-panel">
-          <p className="eyebrow">AI SCANNER</p><h2>Signal status</h2>
-          <div className="no-signal">NO SIGNAL</div>
-          <p className="muted">Predictive output remains disabled until a model passes out-of-sample testing, calibration, and baseline comparison.</p>
+          <p className="eyebrow">LIVE MARKET ANALYSIS</p><h2>Market review</h2>
+          <div className="no-signal">{review.status}</div>
+          <p className="muted">{review.summary}</p>
           <div className="divider" />
-          <div className="metric"><span>Candidate digit</span><b>—</b></div>
-          <div className="metric"><span>Validated probability</span><b>—</b></div>
-          <div className="metric"><span>Confidence</span><b>NOT ESTABLISHED</b></div>
-          <div className="metric"><span>Benchmark</span><b>10% UNIFORM BASELINE</b></div>
+          <div className="metric"><span>Sample size</span><b>{review.sample} TICKS</b></div>
+          <div className="metric"><span>Uniformity test · χ²</span><b>{review.sample ? review.chiSquare.toFixed(2) : "—"}</b></div>
+          <div className="metric"><span>Largest digit deviation</span><b>{review.sample ? `${review.maxDeviation.toFixed(1)} pp` : "—"}</b></div>
+          <div className="metric"><span>Distribution entropy</span><b>{review.sample ? `${(review.entropy * 100).toFixed(1)}% of max` : "—"}</b></div>
+          <div className="metric"><span>Adjacent repeat rate</span><b>{review.sample > 1 ? `${review.repeatRate.toFixed(1)}%` : "—"}</b></div>
+          <div className="metric"><span>Longest same-digit run</span><b>{review.sample ? review.longestStreak : "—"}</b></div>
+          <div className="metric"><span>Recent-vs-prior shift</span><b>{review.sample >= 200 ? `${review.recentShift.toFixed(1)} pp` : "BUILDING"}</b></div>
+          <p className="muted analysis-footnote">The χ² comparison uses a 10% uniform reference (9 degrees of freedom; 16.92 is a conventional 5% reference threshold). Tick dependence and repeated monitoring can invalidate simple significance assumptions. These measurements do not predict the next digit.</p>
         </aside>
       </section>
 
       <section className="panel methodology">
         <div><p className="eyebrow">METHODOLOGY</p><h2>Frequency is not a forecast.</h2></div>
-        <p>Observed digit frequencies describe the sample already collected. They do not, by themselves, establish the probability of the next tick. DigitLab will compare any future candidate model against a 10% uniform baseline using walk-forward, unseen data.</p>
+        <p>The live review now measures distribution departure, entropy, repeat rate, streak length and recent-vs-prior sample drift. These are descriptive diagnostics, not next-tick predictions. Any future candidate model must still beat a 10% uniform baseline on walk-forward, unseen data and pass calibration.</p>
       </section>
-      <footer><span>DIGITLAB PREDICTOR</span><span>DERIV PUBLIC MARKET DATA · READ ONLY · PREDICTIONS NOT YET ENABLED</span></footer>
+      <footer><span>DIGITLAB PREDICTOR</span><span>DERIV PUBLIC MARKET DATA · READ ONLY · DESCRIPTIVE ANALYSIS ACTIVE · PREDICTIONS NOT ENABLED</span></footer>
     </main>
   );
 }
