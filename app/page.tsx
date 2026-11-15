@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import Link from "next/link";
 import { summarizeDigits, type TickPoint } from "@/lib/digits";
 
 const MARKETS = [
@@ -30,10 +31,10 @@ export default function Home() {
   return (
     <main className="shell">
       <header className="topbar">
-        <a className="brand" href="/" aria-label="DigitLab Predictor home">
+        <Link className="brand" href="/" aria-label="DigitLab Predictor home">
           <span className="brand-mark">D</span>
           <span>DIGITLAB <b>PREDICTOR</b><small>DERIV · LAST-DIGIT ANALYSIS</small></span>
-        </a>
+        </Link>
         <span className="status"><i /> {connection}</span>
       </header>
 
