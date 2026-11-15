@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { summarizeDigits, type TickPoint } from "@/lib/digits";
+import { scanDigits } from "@/lib/digit-ai";
 import { countTicks, loadTicks, saveTicks } from "@/lib/research-store";
 
 const MARKETS = [
@@ -129,6 +130,7 @@ export default function Home() {
   const stats = useMemo(() => summarizeDigits(ticks, 2), [ticks]);
   const latestDigits = useMemo(() => ticks.slice(-30).map(digitOf), [ticks]);
   const review = useMemo(() => reviewMarket(ticks), [ticks]);
+  const aiReview = useMemo(() => scanDigits(ticks), [ticks]);
 
   useEffect(() => {
     let active = true;
@@ -429,6 +431,25 @@ export default function Home() {
           <div className="metric"><span>Observed lift</span><b>{review.transitionSupport >= 30 ? `${review.transitionLift.toFixed(2)}×` : "—"}</b></div>
           <p className="muted analysis-footnote">The χ² comparison uses a 10% uniform reference (9 degrees of freedom; 16.92 is a conventional 5% reference threshold). The transition scan selects the strongest of 100 in-sample pairs, so apparent lift is especially prone to chance and multiple-testing bias. Neither metric predicts the next digit. Only chronological out-of-sample testing can validate an edge.</p>
         </aside>
+      </section>
+
+
+      <section className="panel ai-panel">
+        <div className="section-heading">
+          <div><p className="eyebrow">ADAPTIVE AI-STYLE RESEARCH SCANNER</p><h2>Next-digit evidence scan</h2></div>
+          <span className="tag">WALK-FORWARD GATED</span>
+        </div>
+        <div className="ai-status">{aiReview.status}</div>
+        <div className="ai-grid">
+          <div><span>Candidate digit</span><b>{aiReview.candidate === null ? "—" : aiReview.candidate}</b></div>
+          <div><span>Trigger · latest digit</span><b>{aiReview.triggerDigit === null ? "—" : aiReview.triggerDigit}</b></div>
+          <div><span>Model confidence</span><b>{aiReview.support ? `${aiReview.confidence.toFixed(1)}%` : "—"}</b></div>
+          <div><span>Trigger support</span><b>{aiReview.support}</b></div>
+          <div><span>Chronological holdout</span><b>{aiReview.holdoutSamples ? `${aiReview.holdoutAccuracy.toFixed(1)}%` : "—"}</b></div>
+          <div><span>Uniform reference</span><b>10.0%</b></div>
+        </div>
+        <p className="muted">{aiReview.explanation}</p>
+        <p className="analysis-footnote">The scanner uses smoothed one-step transition frequencies and a chronological 70/30 train/holdout split. It is an experimental statistical model, not a generative AI oracle. The holdout is small and repeated scans are not independent; no profitability or accuracy guarantee is implied. A displayed candidate is research-only, not a trade instruction.</p>
       </section>
 
       <section className="panel methodology">
