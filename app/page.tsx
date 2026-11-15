@@ -42,8 +42,10 @@ export default function Home() {
       socket = new WebSocket(`wss://ws.derivws.com/websockets/v3?app_id=${encodeURIComponent(APP_ID)}`);
       socket.onopen = () => {
         if (!active) return;
-        setConnection("CONNECTED · LOADING SAMPLE");
-        socket?.send(JSON.stringify({ ticks_history: market, count: MAX_TICKS, end: "latest", style: "ticks", subscribe: 1 }));
+        setConnection("CONNECTED · REQUESTING DATA");
+        socket?.send(JSON.stringify({ ping: 1 }));
+        socket?.send(JSON.stringify({ ticks_history: market, count: MAX_TICKS, end: "latest", style: "ticks" }));
+        socket?.send(JSON.stringify({ ticks: market, subscribe: 1 }));
       };
       socket.onmessage = (event) => {
         if (!active) return;
@@ -51,8 +53,11 @@ export default function Home() {
           const message = JSON.parse(event.data);
           if (message.error) {
             setConnection("FEED ERROR");
-            setNote(message.error.message || "Deriv returned a market-data error.");
+            setNote(`Deriv API error (${message.error.code || "unknown"}): ${message.error.message || "Request rejected"}`);
             return;
+          }
+          if (message.msg_type === "ping") {
+            setConnection("CONNECTED · PING OK");
           }
           if (message.history?.prices && message.history?.times) {
             const prices = message.history.prices as (number | string)[];
@@ -78,10 +83,14 @@ export default function Home() {
         }
       };
       socket.onerror = () => {
-        if (active) { setConnection("CONNECTION ERROR"); setNote("Feed connection error. Retrying automatically…"); }
+        if (active) { setConnection("CONNECTION ERROR"); setNote("Browser could not establish or maintain the Deriv WebSocket. Check the close code below; retrying automatically…"); }
       };
-      socket.onclose = () => {
-        if (active) { setConnection("RECONNECTING"); retry = setTimeout(connect, 2500); }
+      socket.onclose = (event) => {
+        if (active) {
+          setConnection("RECONNECTING");
+          setNote(`WebSocket closed (code ${event.code}${event.reason ? `: ${event.reason}` : ""}). Retrying in 2.5 seconds.`);
+          retry = setTimeout(connect, 2500);
+        }
       };
     };
     connect();
