@@ -19,6 +19,10 @@ function openDatabase(): Promise<IDBDatabase> {
         const store = db.createObjectStore(STORE_NAME, { keyPath: ["symbol", "epoch", "quote"] });
         store.createIndex("by_symbol_epoch", ["symbol", "epoch"], { unique: false });
       }
+      if (!db.objectStoreNames.contains("paper-decisions")) {
+        const ledger = db.createObjectStore("paper-decisions", { keyPath: "id" });
+        ledger.createIndex("by_market_epoch", ["market", "tickEpoch"], { unique: false });
+      }
     };
     request.onsuccess = () => resolve(request.result);
     request.onerror = () => reject(request.error ?? new Error("Could not open local research storage."));
