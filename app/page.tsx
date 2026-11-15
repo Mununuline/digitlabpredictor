@@ -127,7 +127,7 @@ export default function Home() {
 
           if (message.msg_type === "active_symbols" || (message.req_id === SYMBOLS_REQ && Array.isArray(message.active_symbols))) {
             if (responseTimer) clearTimeout(responseTimer);
-            const symbols = (message.active_symbols || []).map((item: { symbol?: string }) => item.symbol).filter(Boolean) as string[];
+            const symbols = (message.active_symbols || []).map((item: { symbol?: string; underlying_symbol?: string }) => item.underlying_symbol || item.symbol).filter(Boolean) as string[];
             setVerifiedSymbols(symbols);
             if (!symbols.includes(market)) {
               setFeedError(`Selected market ${market} is not in Deriv's active-symbol response.`);
