@@ -5,6 +5,7 @@ import Link from "next/link";
 import { summarizeDigits, type TickPoint } from "@/lib/digits";
 import { scanDigits } from "@/lib/digit-ai";
 import { countTicks, loadTicks, saveTicks } from "@/lib/research-store";
+import { loadPaperLedger, recordPaperDecision, settlePaperDecision, type PaperDecision } from "@/lib/paper-ledger";
 
 const MARKETS = [
   { symbol: "1HZ10V", label: "Volatility 10 (1s)" },
@@ -124,6 +125,8 @@ export default function Home() {
   const [feedError, setFeedError] = useState("");
   const [lastResponse, setLastResponse] = useState("NO SERVER RESPONSE YET");
   const [storedTickCount, setStoredTickCount] = useState(0);
+  const [paperLedger, setPaperLedger] = useState<PaperDecision[]>([]);
+  const processedTickRef = useRef<string>("");
   const [storageStatus, setStorageStatus] = useState("LOCAL ARCHIVE · LOADING");
   const socketRef = useRef<WebSocket | null>(null);
 
@@ -131,6 +134,42 @@ export default function Home() {
   const latestDigits = useMemo(() => ticks.slice(-30).map(digitOf), [ticks]);
   const review = useMemo(() => reviewMarket(ticks), [ticks]);
   const aiReview = useMemo(() => scanDigits(ticks), [ticks]);
+  useEffect(() => {
+    let active = true;
+    const latest = ticks[ticks.length - 1];
+    if (!latest) return;
+    const key = `${market}:${latest.epoch}:${latest.quote}`;
+    if (processedTickRef.current === key) return;
+    processedTickRef.current = key;
+
+    const run = async () => {
+      try {
+        let rows = await loadPaperLedger(market);
+        const pending = [...rows].reverse().find((row) => row.outcomeDigit === null && row.tickEpoch < latest.epoch);
+        if (pending) rows = await settlePaperDecision(market, pending.id, digitOf(latest));
+
+        const exists = rows.some((row) => row.tickEpoch === latest.epoch && row.tickQuote === latest.quote);
+        if (!exists) {
+          const evidence = scanDigits(ticks);
+          const decision: PaperDecision["decision"] = ticks.length < 300 || evidence.holdoutSamples < 100
+            ? "WAIT"
+            : evidence.candidate !== null ? "TRADE" : "NO TRADE";
+          rows = await recordPaperDecision(market, {
+            id: `${market}-${latest.epoch}-${String(latest.quote).replace(".", "-")}`,
+            market, tickEpoch: latest.epoch, tickQuote: latest.quote, decision,
+            triggerDigit: evidence.triggerDigit, proposedDigit: evidence.proposedCandidate,
+            approvedDigit: evidence.candidate, confidence: evidence.confidence,
+            holdoutAccuracy: evidence.holdoutAccuracy, holdoutSamples: evidence.holdoutSamples,
+            outcomeDigit: null, hit: null,
+          });
+        }
+        if (active) setPaperLedger(rows);
+      } catch { /* local paper ledger remains optional if browser storage is unavailable */ }
+    };
+    void run();
+    return () => { active = false; };
+  }, [ticks, market]);
+
 
   useEffect(() => {
     let active = true;
@@ -469,11 +508,40 @@ export default function Home() {
         <p className="analysis-footnote">{aiReview.randomnessNote} A high chi-square score, unusual repeat rate or apparent transition can occur by chance, especially across many windows and markets. These diagnostics do not expose or reverse-engineer Deriv&apos;s CSPRNG and cannot guarantee the next digit. Three-tick forecasts remain disabled until the one-tick model demonstrates repeatable out-of-sample performance.</p>
       </section>
 
+
+      <section className="panel paper-panel">
+        <div className="section-heading">
+          <div><p className="eyebrow">AUTONOMOUS DECISION ENGINE · SIMULATION ONLY</p><h2>TRADE / WAIT / NO TRADE</h2></div>
+          <span className="tag">REAL ORDERS DISABLED</span>
+        </div>
+        <p className="muted">DigitLab records one decision for each newly observed tick. The following tick settles the prediction. TRADE is a paper-only candidate that passed the current evidence gate; WAIT means insufficient evaluation data; NO TRADE means the gate was not passed. No Deriv contract is submitted.</p>
+        <div className="paper-summary">
+          <div><span>TRADE DECISIONS</span><b>{paperLedger.filter((x) => x.decision === "TRADE").length}</b></div>
+          <div><span>TRADE WINS</span><b>{paperLedger.filter((x) => x.decision === "TRADE" && x.hit === true).length}</b></div>
+          <div><span>TRADE LOSSES</span><b>{paperLedger.filter((x) => x.decision === "TRADE" && x.hit === false).length}</b></div>
+          <div><span>SETTLED TRADE ACCURACY</span><b>{(() => { const done = paperLedger.filter((x) => x.decision === "TRADE" && x.hit !== null); return done.length ? `${(done.filter((x) => x.hit).length / done.length * 100).toFixed(1)}%` : "—"; })()}</b></div>
+          <div><span>SHADOW CANDIDATE HIT RATE</span><b>{(() => { const done = paperLedger.filter((x) => x.proposedDigit !== null && x.outcomeDigit !== null); return done.length ? `${(done.filter((x) => x.proposedDigit === x.outcomeDigit).length / done.length * 100).toFixed(1)}%` : "—"; })()}</b></div>
+          <div><span>WAIT / NO TRADE</span><b>{paperLedger.filter((x) => x.decision !== "TRADE").length}</b></div>
+        </div>
+        <div className="paper-table">
+          <div className="paper-row paper-head"><span>TIME</span><span>DECISION</span><span>TRIGGER</span><span>PROPOSED → ACTUAL</span><span>RESULT</span></div>
+          {paperLedger.slice(-12).reverse().map((row) => <div className="paper-row" key={row.id}>
+            <span>{new Date(row.tickEpoch * 1000).toLocaleTimeString()}</span>
+            <b className={`decision-${row.decision.toLowerCase()}`}>{row.decision}</b>
+            <span>{row.triggerDigit ?? "—"}</span>
+            <span>{row.proposedDigit ?? "—"} → {row.outcomeDigit ?? "PENDING"}</span>
+            <span>{row.hit === null ? (row.outcomeDigit === null ? "PENDING" : "NOT TRADED") : row.hit ? "HIT" : "MISS"}</span>
+          </div>)}
+          {!paperLedger.length && <p className="muted">Waiting for the next live tick to start the paper decision ledger.</p>}
+        </div>
+        <p className="analysis-footnote">This ledger is stored locally in this browser and device. The shadow-candidate hit rate measures rejected as well as approved candidates separately. Paper accuracy is not profitability: Deriv contract payout, spread and settlement rules are not simulated here.</p>
+      </section>
+
       <section className="panel methodology">
         <div><p className="eyebrow">METHODOLOGY</p><h2>Frequency is not a forecast.</h2></div>
         <p>The live review measures distribution departure, entropy, repeats, streaks, sample drift and the strongest observed one-step digit transition. Transition lift is a hypothesis generator only—not a signal. This first research archive stores timestamped ticks locally in this browser on this device; it is not yet a shared cloud database and will not follow you to another device or browser. Collect up to 1,000 recent ticks per market by selecting it and leaving the feed connected. The scanner evaluates a one-tick candidate with expanding-window walk-forward testing and abstains unless its conservative confidence bound clears the 10% baseline. The browser archive remains local to this device.</p>
       </section>
-      <footer><span>DIGITLAB PREDICTOR</span><span>DERIV PUBLIC MARKET DATA · READ ONLY · DESCRIPTIVE ANALYSIS ACTIVE · PREDICTIONS NOT ENABLED</span></footer>
+      <footer><span>DIGITLAB PREDICTOR</span><span>DERIV PUBLIC MARKET DATA · READ ONLY · PAPER DECISIONS ACTIVE · REAL TRADING DISABLED</span></footer>
     </main>
   );
 }
