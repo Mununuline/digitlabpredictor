@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { summarizeDigits, type TickPoint } from "@/lib/digits";
+import { countTicks, loadTicks, saveTicks } from "@/lib/research-store";
 
 const MARKETS = [
   { symbol: "1HZ10V", label: "Volatility 10 (1s)" },
@@ -121,11 +122,36 @@ export default function Home() {
   const [verifiedSymbols, setVerifiedSymbols] = useState<string[]>([]);
   const [feedError, setFeedError] = useState("");
   const [lastResponse, setLastResponse] = useState("NO SERVER RESPONSE YET");
+  const [storedTickCount, setStoredTickCount] = useState(0);
+  const [storageStatus, setStorageStatus] = useState("LOCAL ARCHIVE · LOADING");
   const socketRef = useRef<WebSocket | null>(null);
 
   const stats = useMemo(() => summarizeDigits(ticks, 2), [ticks]);
   const latestDigits = useMemo(() => ticks.slice(-30).map(digitOf), [ticks]);
   const review = useMemo(() => reviewMarket(ticks), [ticks]);
+
+  useEffect(() => {
+    let active = true;
+    setStorageStatus("LOCAL ARCHIVE · LOADING");
+    loadTicks(market, 5000).then((saved) => {
+      if (!active) return;
+      setTicks((current) => {
+        const merged = new Map<string, TickPoint>();
+        for (const point of saved) merged.set(`${point.epoch}:${point.quote}`, point);
+        for (const point of current) merged.set(`${point.epoch}:${point.quote}`, point);
+        return [...merged.values()].sort((a, b) => a.epoch - b.epoch).slice(-MAX_TICKS);
+      });
+      return countTicks(market).then((count) => {
+        if (active) {
+          setStoredTickCount(count);
+          setStorageStatus("LOCAL ARCHIVE · SAVING");
+        }
+      });
+    }).catch(() => {
+      if (active) setStorageStatus("LOCAL ARCHIVE · UNAVAILABLE");
+    });
+    return () => { active = false; };
+  }, [market]);
 
   useEffect(() => {
     if (!connectRequested) return;
@@ -357,7 +383,7 @@ export default function Home() {
         <div><span>LATENCY</span><b>{latency === null ? "—" : `${latency} ms`}</b></div>
         <div><span>LAST TICK</span><b>{ageSeconds === null ? "—" : ageSeconds === 0 ? "JUST NOW" : `${ageSeconds}s AGO`}</b></div>
         <div><span>SYMBOL CHECK</span><b>{verifiedSymbols.includes(market) ? "CONFIRMED" : "PENDING"}</b></div>
-        <div><span>SERVER RESPONSE</span><b>{lastResponse}</b></div>
+        <div><span>SERVER RESPONSE</span><b>{lastResponse}</b></div>\n        <div><span>RESEARCH ARCHIVE</span><b>{storageStatus}</b></div>\n        <div><span>SAVED TICKS · THIS DEVICE</span><b>{storedTickCount.toLocaleString()}</b></div>
       </section>
 
       <section className="grid">
@@ -407,7 +433,7 @@ export default function Home() {
 
       <section className="panel methodology">
         <div><p className="eyebrow">METHODOLOGY</p><h2>Frequency is not a forecast.</h2></div>
-        <p>The live review measures distribution departure, entropy, repeats, streaks, sample drift and the strongest observed one-step digit transition. Transition lift is a hypothesis generator only—not a signal. The next research phase must collect timestamped data across all seven markets, preserve it beyond the browser session, then test predeclared hypotheses chronologically on untouched future ticks against a 10% baseline. No candidate becomes a prediction until it survives walk-forward validation and calibration.</p>
+        <p>The live review measures distribution departure, entropy, repeats, streaks, sample drift and the strongest observed one-step digit transition. Transition lift is a hypothesis generator only—not a signal. This first research archive stores timestamped ticks locally in this browser on this device; it is not yet a shared cloud database and will not follow you to another device or browser. Collect each market by selecting it and leaving the feed connected. Candidates remain disabled until a cloud-backed multi-market dataset supports chronological walk-forward testing, multiple-testing correction and calibration against the 10% baseline.</p>
       </section>
       <footer><span>DIGITLAB PREDICTOR</span><span>DERIV PUBLIC MARKET DATA · READ ONLY · DESCRIPTIVE ANALYSIS ACTIVE · PREDICTIONS NOT ENABLED</span></footer>
     </main>
