@@ -184,7 +184,10 @@ export default function Home() {
       }
     };
     void run();
-    return () => { active = false; };
+    return () => {
+      active = false;
+      if (processedTickRef.current === key) processedTickRef.current = "";
+    };
   }, [ticks, market, connection]);
 
   useEffect(() => {
