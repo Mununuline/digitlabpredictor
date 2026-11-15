@@ -64,3 +64,11 @@ footer{display:flex;justify-content:space-between;color:#647386;font-size:9px;le
 .analysis-footnote{margin-top:18px;padding-top:12px;border-top:1px solid var(--line);font-size:9px;line-height:1.7}
 .feed-meta{grid-template-columns:repeat(5,1fr)}
 @media(max-width:760px){.feed-meta{grid-template-columns:repeat(2,1fr)}}
+
+.ai-panel{padding:24px;margin-top:20px}
+.ai-status{margin:8px 0 16px;padding:16px;border:1px solid #59442a;background:#201b14;border-radius:9px;color:#f0bd70;font:500 17px 'DM Mono',monospace;text-align:center;letter-spacing:1px}
+.ai-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin:16px 0}
+.ai-grid div{padding:13px;background:#0b141f;border:1px solid #1c2a39;border-radius:8px;display:flex;flex-direction:column;gap:8px}
+.ai-grid span{font:9px 'DM Mono',monospace;color:var(--muted)}
+.ai-grid b{font:15px 'DM Mono',monospace;color:var(--cyan)}
+@media(max-width:760px){.ai-grid{grid-template-columns:repeat(2,1fr)}}
