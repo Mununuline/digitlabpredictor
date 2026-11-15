@@ -143,7 +143,8 @@ export default function Home() {
   useEffect(() => {
     let active = true;
     const latest = ticks[ticks.length - 1];
-    if (!latest) return;
+    // Never create decisions from a historical preload or a disconnected feed.
+    if (!latest || connection !== "LIVE") return;
     const key = `${market}:${latest.epoch}:${latest.quote}`;
     if (processedTickRef.current === key) return;
     processedTickRef.current = key;
@@ -151,8 +152,15 @@ export default function Home() {
     const run = async () => {
       try {
         let rows = await loadPaperLedger(market);
-        const pending = [...rows].reverse().find((row) => row.outcomeDigit === null && row.tickEpoch < latest.epoch);
-        if (pending) rows = await settlePaperDecision(market, pending.id, digitOf(latest));
+
+        // Settle each pending decision against the earliest later tick we have,
+        // not merely the newest tick in a React update batch. This preserves
+        // one-tick scoring if several feed messages arrive before a render.
+        const pending = rows.filter((row) => row.outcomeDigit === null && row.tickEpoch < latest.epoch);
+        for (const row of pending) {
+          const nextTick = ticks.find((point) => point.epoch > row.tickEpoch);
+          if (nextTick) rows = await settlePaperDecision(market, row.id, digitOf(nextTick));
+        }
 
         const exists = rows.some((row) => row.tickEpoch === latest.epoch && row.tickQuote === latest.quote);
         if (!exists) {
@@ -170,12 +178,14 @@ export default function Home() {
           });
         }
         if (active) setPaperLedger(rows);
-      } catch { /* local paper ledger remains optional if browser storage is unavailable */ }
+      } catch {
+        // Permit retry for this tick if browser storage temporarily fails.
+        if (processedTickRef.current === key) processedTickRef.current = "";
+      }
     };
     void run();
     return () => { active = false; };
-  }, [ticks, market]);
-
+  }, [ticks, market, connection]);
 
   useEffect(() => {
     let active = true;
@@ -435,7 +445,7 @@ export default function Home() {
       <section className="controls panel">
         <div className="field">
           <label htmlFor="market">MARKET</label>
-          <select id="market" value={market} onChange={(event) => setMarket(event.target.value)}>
+          <select id="market" value={market} onChange={(event) => { setConnection("CONNECTING"); setTicks([]); setLastTickAt(null); setLatency(null); processedTickRef.current = ""; setMarket(event.target.value); }}>
             {MARKETS.map((item) => <option key={item.symbol} value={item.symbol}>{item.label} · {item.symbol}</option>)}
           </select>
         </div>
