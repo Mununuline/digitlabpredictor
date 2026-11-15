@@ -17,7 +17,7 @@ const MARKETS = [
 ];
 
 const PUBLIC_WS = "wss://api.derivws.com/trading/v1/options/ws/public";
-const MAX_TICKS = 500;
+const MAX_TICKS = 1000;
 const HISTORY_REQ = 11;
 const SYMBOLS_REQ = 10;
 const STREAM_REQ = 12;
@@ -387,7 +387,8 @@ export default function Home() {
         <div><span>LATENCY</span><b>{latency === null ? "—" : `${latency} ms`}</b></div>
         <div><span>LAST TICK</span><b>{ageSeconds === null ? "—" : ageSeconds === 0 ? "JUST NOW" : `${ageSeconds}s AGO`}</b></div>
         <div><span>SYMBOL CHECK</span><b>{verifiedSymbols.includes(market) ? "CONFIRMED" : "PENDING"}</b></div>
-        <div><span>SERVER RESPONSE</span><b>{lastResponse}</b></div>\n        <div><span>RESEARCH ARCHIVE</span><b>{storageStatus}</b></div>\n        <div><span>SAVED TICKS · THIS DEVICE</span><b>{storedTickCount.toLocaleString()}</b></div>
+        <div><span>SERVER RESPONSE</span><b>{lastResponse}</b></div>
+        <div><span>RESEARCH ARCHIVE</span><b>{storageStatus}</b></div>\n        <div><span>SAVED TICKS · THIS DEVICE</span><b>{storedTickCount.toLocaleString()}</b></div>
       </section>
 
       <section className="grid">
@@ -438,25 +439,39 @@ export default function Home() {
 
       <section className="panel ai-panel">
         <div className="section-heading">
-          <div><p className="eyebrow">ADAPTIVE AI-STYLE RESEARCH SCANNER</p><h2>Next-digit evidence scan</h2></div>
-          <span className="tag">WALK-FORWARD GATED</span>
+          <div><p className="eyebrow">CSPRNG-AWARE · ADAPTIVE STATISTICAL SCANNER</p><h2>One-tick prediction evidence</h2></div>
+          <span className="tag">EXPANDING WALK-FORWARD</span>
         </div>
         <div className="ai-status">{aiReview.status}</div>
         <div className="ai-grid">
-          <div><span>Candidate digit</span><b>{aiReview.candidate === null ? "—" : aiReview.candidate}</b></div>
-          <div><span>Trigger · latest digit</span><b>{aiReview.triggerDigit === null ? "—" : aiReview.triggerDigit}</b></div>
-          <div><span>Model confidence</span><b>{aiReview.support ? `${aiReview.confidence.toFixed(1)}%` : "—"}</b></div>
+          <div><span>Next-tick candidate</span><b>{aiReview.candidate === null ? "NO SIGNAL" : aiReview.candidate}</b></div>
+          <div><span>Current trigger digit</span><b>{aiReview.triggerDigit === null ? "—" : aiReview.triggerDigit}</b></div>
+          <div><span>Smoothed conditional estimate</span><b>{aiReview.support ? `${aiReview.confidence.toFixed(1)}%` : "—"}</b></div>
           <div><span>Trigger support</span><b>{aiReview.support}</b></div>
-          <div><span>Chronological holdout</span><b>{aiReview.holdoutSamples ? `${aiReview.holdoutAccuracy.toFixed(1)}%` : "—"}</b></div>
-          <div><span>Uniform reference</span><b>10.0%</b></div>
+          <div><span>Walk-forward accuracy</span><b>{aiReview.holdoutSamples ? `${aiReview.holdoutAccuracy.toFixed(1)}%` : "—"}</b></div>
+          <div><span>95% lower confidence bound</span><b>{aiReview.holdoutSamples ? `${aiReview.lowerBound.toFixed(1)}%` : "—"}</b></div>
+          <div><span>Evaluated unseen predictions</span><b>{aiReview.holdoutSamples}</b></div>
+          <div><span>Random baseline</span><b>10.0%</b></div>
+          <div><span>Observed lift vs baseline</span><b>{aiReview.holdoutSamples ? `${aiReview.lift.toFixed(2)}×` : "—"}</b></div>
+        </div>
+        <div className="window-heading"><span>ROLLING RANDOMNESS DIAGNOSTICS</span><small>Latest ticks · max 1,000</small></div>
+        <div className="window-grid">
+          {aiReview.windows.map((window) => <div className="window-card" key={window.size}>
+            <b>{window.size.toLocaleString()}</b><small>TICK WINDOW</small>
+            <span>{window.sample} observed</span>
+            <span>χ² {window.sample ? window.chiSquare.toFixed(1) : "—"}</span>
+            <span>Repeat {window.sample > 1 ? `${window.repeatRate.toFixed(1)}%` : "—"}</span>
+            <span>Entropy {window.sample ? `${window.entropy.toFixed(1)}%` : "—"}</span>
+            <em>{window.status}</em>
+          </div>)}
         </div>
         <p className="muted">{aiReview.explanation}</p>
-        <p className="analysis-footnote">The scanner uses smoothed one-step transition frequencies and a chronological 70/30 train/holdout split. It is an experimental statistical model, not a generative AI oracle. The holdout is small and repeated scans are not independent; no profitability or accuracy guarantee is implied. A displayed candidate is research-only, not a trade instruction.</p>
+        <p className="analysis-footnote">{aiReview.randomnessNote} A high chi-square score, unusual repeat rate or apparent transition can occur by chance, especially across many windows and markets. These diagnostics do not expose or reverse-engineer Deriv's CSPRNG and cannot guarantee the next digit. Three-tick forecasts remain disabled until the one-tick model demonstrates repeatable out-of-sample performance.</p>
       </section>
 
       <section className="panel methodology">
         <div><p className="eyebrow">METHODOLOGY</p><h2>Frequency is not a forecast.</h2></div>
-        <p>The live review measures distribution departure, entropy, repeats, streaks, sample drift and the strongest observed one-step digit transition. Transition lift is a hypothesis generator only—not a signal. This first research archive stores timestamped ticks locally in this browser on this device; it is not yet a shared cloud database and will not follow you to another device or browser. Collect each market by selecting it and leaving the feed connected. Candidates remain disabled until a cloud-backed multi-market dataset supports chronological walk-forward testing, multiple-testing correction and calibration against the 10% baseline.</p>
+        <p>The live review measures distribution departure, entropy, repeats, streaks, sample drift and the strongest observed one-step digit transition. Transition lift is a hypothesis generator only—not a signal. This first research archive stores timestamped ticks locally in this browser on this device; it is not yet a shared cloud database and will not follow you to another device or browser. Collect up to 1,000 recent ticks per market by selecting it and leaving the feed connected. The scanner evaluates a one-tick candidate with expanding-window walk-forward testing and abstains unless its conservative confidence bound clears the 10% baseline. The browser archive remains local to this device.</p>
       </section>
       <footer><span>DIGITLAB PREDICTOR</span><span>DERIV PUBLIC MARKET DATA · READ ONLY · DESCRIPTIVE ANALYSIS ACTIVE · PREDICTIONS NOT ENABLED</span></footer>
     </main>
