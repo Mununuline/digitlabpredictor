@@ -119,7 +119,7 @@ export function scanDigits(points: TickPoint[]): DigitAIReview {
     lift: holdoutAccuracy / 10, holdoutSamples: evaluated, lowerBound, windows,
     randomnessNote: "CSPRNG-aware means testing the observable output for distribution and serial-pattern anomalies. It does not reveal Deriv's secret seed, internal state or next random value.",
     explanation: validated
-      ? "A one-tick transition model passed the current expanding-window holdout gate. Continue paper testing; this is not proof of a persistent or profitable edge."
-      : "No candidate has passed the strict out-of-sample gate. The model abstains rather than presenting a weak pattern as a prediction.",
+      ? "The one-tick strategy passed its current expanding-window gate on trade-eligible holdout opportunities. Continue paper testing; this is not proof of a persistent or profitable edge."
+      : "No candidate has passed the strict out-of-sample gate on trade-eligible opportunities. Only predictions meeting the same support and confidence rules as live paper decisions are counted. The model abstains rather than presenting a weak pattern as a prediction.",
   };
 }
