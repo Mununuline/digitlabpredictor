@@ -42,6 +42,8 @@ function digitOf(tick: TickPoint): number {
 type MarketReview = {
   sample: number; chiSquare: number; maxDeviation: number; entropy: number;
   repeatRate: number; longestStreak: number; recentShift: number;
+  transitionSupport: number; transitionProbability: number; transitionBaseline: number;
+  transitionLift: number; transitionLabel: string;
   status: string; summary: string;
 };
 
@@ -75,13 +77,37 @@ function reviewMarket(points: TickPoint[]): MarketReview {
   const recentShift = recent.length && prior.length
     ? Math.max(...recentCounts.map((count, i) => Math.abs(count / recent.length - priorCounts[i] / prior.length) * 100))
     : 0;
+  // Exploratory one-step transition scan. This is deliberately not a forecast:
+  // the best cell is selected from 100 possible transitions, so it is highly
+  // exposed to multiple-testing noise until it survives untouched future data.
+  const transitions = Array.from({ length: 10 }, () => Array.from({ length: 10 }, () => 0));
+  const rowTotals = Array.from({ length: 10 }, () => 0);
+  const targetTotals = Array.from({ length: 10 }, () => 0);
+  for (let i = 0; i + 1 < digits.length; i++) {
+    transitions[digits[i]][digits[i + 1]]++;
+    rowTotals[digits[i]]++;
+    targetTotals[digits[i + 1]]++;
+  }
+  let best = { support: 0, probability: 0, baseline: 0, lift: 0, from: -1, to: -1 };
+  for (let from = 0; from < 10; from++) {
+    if (rowTotals[from] < 1) continue;
+    for (let to = 0; to < 10; to++) {
+      const probability = transitions[from][to] / rowTotals[from];
+      const baseline = n > 1 ? targetTotals[to] / (n - 1) : 0.1;
+      const lift = baseline > 0 ? probability / baseline : 0;
+      if (lift > best.lift) best = { support: rowTotals[from], probability, baseline, lift, from, to };
+    }
+  }
+  const transitionLabel = best.support < 30
+    ? "INSUFFICIENT TRANSITION SUPPORT"
+    : `AFTER ${best.from} → ${best.to} · EXPLORATORY ONLY`;
   const status = n < 200 ? "BUILDING SAMPLE" : chiSquare >= 16.92 ? "DISTRIBUTION DEVIATION" : "NO STRONG DEVIATION";
   const summary = n < 200
     ? "Collecting a larger sample before comparing the digit distribution."
     : chiSquare >= 16.92
       ? "The sample differs from a perfectly uniform 10% split. This is descriptive evidence only, not a next-tick edge."
       : "No large overall departure from a uniform 10% split is visible in this sample.";
-  return { sample: n, chiSquare, maxDeviation, entropy, repeatRate: n > 1 ? repeats / (n - 1) * 100 : 0, longestStreak, recentShift, status, summary };
+  return { sample: n, chiSquare, maxDeviation, entropy, repeatRate: n > 1 ? repeats / (n - 1) * 100 : 0, longestStreak, recentShift, transitionSupport: best.support, transitionProbability: best.probability, transitionBaseline: best.baseline, transitionLift: best.lift, transitionLabel, status, summary };
 }
 
 export default function Home() {
@@ -368,14 +394,20 @@ export default function Home() {
           <div className="metric"><span>Distribution entropy</span><b>{review.sample ? `${(review.entropy * 100).toFixed(1)}% of max` : "—"}</b></div>
           <div className="metric"><span>Adjacent repeat rate</span><b>{review.sample > 1 ? `${review.repeatRate.toFixed(1)}%` : "—"}</b></div>
           <div className="metric"><span>Longest same-digit run</span><b>{review.sample ? review.longestStreak : "—"}</b></div>
-          <div className="metric"><span>Recent-vs-prior shift</span><b>{review.sample >= 200 ? `${review.recentShift.toFixed(1)} pp` : "BUILDING"}</b></div>
-          <p className="muted analysis-footnote">The χ² comparison uses a 10% uniform reference (9 degrees of freedom; 16.92 is a conventional 5% reference threshold). Tick dependence and repeated monitoring can invalidate simple significance assumptions. These measurements do not predict the next digit.</p>
+          <div className="metric"><span>Recent-vs-prior shift</span><b>{review.sample >= 500 ? `${review.recentShift.toFixed(1)} pp` : "NEED 500 TICKS"}</b></div>
+          <div className="divider" />
+          <p className="eyebrow">SEQUENCE HYPOTHESIS SCAN</p>
+          <div className="metric"><span>Strongest observed transition</span><b>{review.transitionLabel}</b></div>
+          <div className="metric"><span>Conditional frequency</span><b>{review.transitionSupport >= 30 ? `${(review.transitionProbability * 100).toFixed(1)}%` : "INSUFFICIENT DATA"}</b></div>
+          <div className="metric"><span>Same target's sample baseline</span><b>{review.transitionSupport >= 30 ? `${(review.transitionBaseline * 100).toFixed(1)}%` : "—"}</b></div>
+          <div className="metric"><span>Observed lift</span><b>{review.transitionSupport >= 30 ? `${review.transitionLift.toFixed(2)}×` : "—"}</b></div>
+          <p className="muted analysis-footnote">The χ² comparison uses a 10% uniform reference (9 degrees of freedom; 16.92 is a conventional 5% reference threshold). The transition scan selects the strongest of 100 in-sample pairs, so apparent lift is especially prone to chance and multiple-testing bias. Neither metric predicts the next digit. Only chronological out-of-sample testing can validate an edge.</p>
         </aside>
       </section>
 
       <section className="panel methodology">
         <div><p className="eyebrow">METHODOLOGY</p><h2>Frequency is not a forecast.</h2></div>
-        <p>The live review now measures distribution departure, entropy, repeat rate, streak length and recent-vs-prior sample drift. These are descriptive diagnostics, not next-tick predictions. Any future candidate model must still beat a 10% uniform baseline on walk-forward, unseen data and pass calibration.</p>
+        <p>The live review measures distribution departure, entropy, repeats, streaks, sample drift and the strongest observed one-step digit transition. Transition lift is a hypothesis generator only—not a signal. The next research phase must collect timestamped data across all seven markets, preserve it beyond the browser session, then test predeclared hypotheses chronologically on untouched future ticks against a 10% baseline. No candidate becomes a prediction until it survives walk-forward validation and calibration.</p>
       </section>
       <footer><span>DIGITLAB PREDICTOR</span><span>DERIV PUBLIC MARKET DATA · READ ONLY · DESCRIPTIVE ANALYSIS ACTIVE · PREDICTIONS NOT ENABLED</span></footer>
     </main>
