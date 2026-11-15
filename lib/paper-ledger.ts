@@ -61,11 +61,6 @@ export async function recordPaperDecision(market: string, decision: PaperDecisio
       const req = index.getAll(IDBKeyRange.bound([market, 0], [market, Number.MAX_SAFE_INTEGER]));
       req.onsuccess = () => {
         const rows = req.result as PaperDecision[];
-        const pending = rows.filter((row) => row.outcomeDigit === null && row.tickEpoch < decision.tickEpoch);
-        for (const row of pending) {
-          row.outcomeDigit = null;
-          store.put(row);
-        }
         const exists = rows.some((row) => row.id === decision.id);
         if (!exists) store.put(decision);
       };
