@@ -60,3 +60,7 @@ footer{display:flex;justify-content:space-between;color:#647386;font-size:9px;le
 .feed-meta b{font:10px 'DM Mono',monospace;color:var(--cyan);overflow-wrap:anywhere}
 .feed-error{padding:10px 12px;border:1px solid #694044;background:#25171c;border-radius:7px;color:#f1a5a5;font:10px 'DM Mono',monospace;line-height:1.7;overflow-wrap:anywhere}
 @media(max-width:760px){.feed-meta{grid-template-columns:repeat(2,1fr);gap:14px;padding:14px}}
+
+.analysis-footnote{margin-top:18px;padding-top:12px;border-top:1px solid var(--line);font-size:9px;line-height:1.7}
+.feed-meta{grid-template-columns:repeat(5,1fr)}
+@media(max-width:760px){.feed-meta{grid-template-columns:repeat(2,1fr)}}
