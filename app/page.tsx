@@ -35,14 +35,21 @@ export default function Home() {
     let active = true;
     let socket: WebSocket | null = null;
     let retry: ReturnType<typeof setTimeout> | undefined;
+    let attempts = 0;
+    const maxAttempts = 3;
     const connect = () => {
       if (!active) return;
-      setConnection("CONNECTING");
-      setNote("Opening Deriv's public, read-only market feed…");
+      attempts += 1;
+      setConnection(attempts === 1 ? "CONNECTING" : `RETRY ${attempts}/${maxAttempts}`);
+      setNote(attempts === 1
+        ? `Opening Deriv public feed using App ID ${APP_ID}…`
+        : `Connection attempt ${attempts}/${maxAttempts}. Waiting for Deriv to accept the WebSocket handshake…`);
       socket = new WebSocket(`wss://ws.derivws.com/websockets/v3?app_id=${encodeURIComponent(APP_ID)}`);
       socket.onopen = () => {
         if (!active) return;
+        attempts = 0;
         setConnection("CONNECTED · REQUESTING DATA");
+        setNote("WebSocket opened. Requesting historical ticks and the live tick stream…");
         socket?.send(JSON.stringify({ ping: 1 }));
         socket?.send(JSON.stringify({ ticks_history: market, count: MAX_TICKS, end: "latest", style: "ticks" }));
         socket?.send(JSON.stringify({ ticks: market, subscribe: 1 }));
@@ -86,11 +93,16 @@ export default function Home() {
         if (active) { setConnection("CONNECTION ERROR"); setNote("Browser could not establish or maintain the Deriv WebSocket. Check the close code below; retrying automatically…"); }
       };
       socket.onclose = (event) => {
-        if (active) {
-          setConnection("RECONNECTING");
-          setNote(`WebSocket closed (code ${event.code}${event.reason ? `: ${event.reason}` : ""}). Retrying in 2.5 seconds.`);
-          retry = setTimeout(connect, 2500);
+        if (!active) return;
+        const detail = `WebSocket closed: code ${event.code}; reason: ${event.reason || "not supplied"}; clean close: ${event.wasClean ? "yes" : "no"}.`;
+        if (attempts >= maxAttempts) {
+          setConnection("FEED STOPPED · DIAGNOSTIC NEEDED");
+          setNote(`${detail} Stopped after ${maxAttempts} attempts so the diagnostic remains visible. Please send this exact message.`);
+          return;
         }
+        setConnection("RECONNECTING");
+        setNote(`${detail} Retrying in 5 seconds (attempt ${attempts + 1}/${maxAttempts}).`);
+        retry = setTimeout(connect, 5000);
       };
     };
     connect();
