@@ -399,7 +399,7 @@ export default function Home() {
           <p className="eyebrow">SEQUENCE HYPOTHESIS SCAN</p>
           <div className="metric"><span>Strongest observed transition</span><b>{review.transitionLabel}</b></div>
           <div className="metric"><span>Conditional frequency</span><b>{review.transitionSupport >= 30 ? `${(review.transitionProbability * 100).toFixed(1)}%` : "INSUFFICIENT DATA"}</b></div>
-          <div className="metric"><span>Same target's sample baseline</span><b>{review.transitionSupport >= 30 ? `${(review.transitionBaseline * 100).toFixed(1)}%` : "—"}</b></div>
+          <div className="metric"><span>Same target&apos;s sample baseline</span><b>{review.transitionSupport >= 30 ? `${(review.transitionBaseline * 100).toFixed(1)}%` : "—"}</b></div>
           <div className="metric"><span>Observed lift</span><b>{review.transitionSupport >= 30 ? `${review.transitionLift.toFixed(2)}×` : "—"}</b></div>
           <p className="muted analysis-footnote">The χ² comparison uses a 10% uniform reference (9 degrees of freedom; 16.92 is a conventional 5% reference threshold). The transition scan selects the strongest of 100 in-sample pairs, so apparent lift is especially prone to chance and multiple-testing bias. Neither metric predicts the next digit. Only chronological out-of-sample testing can validate an edge.</p>
         </aside>
