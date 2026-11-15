@@ -13,6 +13,7 @@ export type WindowReview = {
 export type DigitAIReview = {
   status: string;
   candidate: number | null;
+  proposedCandidate: number | null;
   triggerDigit: number | null;
   confidence: number;
   support: number;
@@ -60,7 +61,7 @@ export function scanDigits(points: TickPoint[]): DigitAIReview {
   const digits = points.map((point) => getLastDigit(point.quote, point.pipSize ?? 2));
   const windows = [25, 50, 100, 250, 500, 1000].map((size) => reviewWindow(digits, size));
   const empty: DigitAIReview = {
-    status: "COLLECTING EVIDENCE", candidate: null, triggerDigit: null,
+    status: "COLLECTING EVIDENCE", candidate: null, proposedCandidate: null, triggerDigit: null,
     confidence: 0, support: 0, holdoutAccuracy: 0, baselineAccuracy: 10,
     lift: 0, holdoutSamples: 0, lowerBound: 0, windows,
     randomnessNote: "Observed-output diagnostics only. Deriv's CSPRNG internals and random state are not exposed to this scanner.",
@@ -108,6 +109,7 @@ export function scanDigits(points: TickPoint[]): DigitAIReview {
   return {
     status: validated ? "RESEARCH CANDIDATE · PAPER TEST ONLY" : "NO SIGNAL · EDGE NOT VERIFIED",
     candidate: validated ? candidate : null,
+    proposedCandidate: candidate,
     triggerDigit, confidence, support, holdoutAccuracy, baselineAccuracy: 10,
     lift: holdoutAccuracy / 10, holdoutSamples: evaluated, lowerBound, windows,
     randomnessNote: "CSPRNG-aware means testing the observable output for distribution and serial-pattern anomalies. It does not reveal Deriv's secret seed, internal state or next random value.",
