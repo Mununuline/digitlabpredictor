@@ -48,6 +48,7 @@ export default function Home() {
   const [latency, setLatency] = useState<number | null>(null);
   const [verifiedSymbols, setVerifiedSymbols] = useState<string[]>([]);
   const [feedError, setFeedError] = useState("");
+  const [lastResponse, setLastResponse] = useState("NO SERVER RESPONSE YET");
   const socketRef = useRef<WebSocket | null>(null);
 
   const stats = useMemo(() => summarizeDigits(ticks, 2), [ticks]);
@@ -60,6 +61,7 @@ export default function Home() {
     let socket: WebSocket | null = null;
     let retryTimer: ReturnType<typeof setTimeout> | undefined;
     let pingTimer: ReturnType<typeof setInterval> | undefined;
+    let responseTimer: ReturnType<typeof setTimeout> | undefined;
     let attempts = 0;
     let pingSentAt: number | null = null;
     let streamRequested = false;
@@ -70,6 +72,7 @@ export default function Home() {
       setConnection(attempts === 0 ? "CONNECTING" : `RECONNECTING · ${attempts}`);
       setNote("Connecting to Deriv's current public market-data WebSocket…");
       setFeedError("");
+      setLastResponse("WAITING FOR DERIV RESPONSE");
       streamRequested = false;
 
       try {
@@ -85,7 +88,16 @@ export default function Home() {
         attempts = 0;
         setConnection("CONNECTED · CHECKING MARKETS");
         setNote("Connected. Checking Deriv's active-symbol list before subscribing…");
+        socket?.send(JSON.stringify({ ping: 1, req_id: PING_REQ }));
         socket?.send(JSON.stringify({ active_symbols: "brief", req_id: SYMBOLS_REQ }));
+        if (responseTimer) clearTimeout(responseTimer);
+        responseTimer = setTimeout(() => {
+          if (active && socket?.readyState === WebSocket.OPEN && verifiedSymbols.length === 0) {
+            setFeedError("Deriv WebSocket opened, but no active-symbol response arrived within 8 seconds. This is an API-response timeout, not a market-symbol rejection.");
+            setNote("Connection is open but the server has not answered active_symbols. Check the raw response status below.");
+            setLastResponse("TIMEOUT · NO active_symbols RESPONSE");
+          }
+        }, 8000);
         pingTimer = setInterval(() => {
           if (socket?.readyState === WebSocket.OPEN) {
             pingSentAt = Date.now();
@@ -98,6 +110,7 @@ export default function Home() {
         if (!active) return;
         try {
           const message = JSON.parse(event.data);
+          setLastResponse(`RECEIVED ${message.msg_type || "MESSAGE"}${message.req_id !== undefined ? ` · req_id ${message.req_id}` : ""}`);
           if (message.error) {
             const detail = `${message.error.code || "API_ERROR"}: ${message.error.message || "Deriv rejected the request"}`;
             setFeedError(detail);
@@ -108,11 +121,12 @@ export default function Home() {
             return;
           }
 
-          if (message.req_id === PING_REQ && message.msg_type === "ping") {
+          if (message.msg_type === "ping") {
             if (pingSentAt !== null) setLatency(Date.now() - pingSentAt);
           }
 
-          if (message.req_id === SYMBOLS_REQ && message.msg_type === "active_symbols") {
+          if (message.msg_type === "active_symbols" || (message.req_id === SYMBOLS_REQ && Array.isArray(message.active_symbols))) {
+            if (responseTimer) clearTimeout(responseTimer);
             const symbols = (message.active_symbols || []).map((item: { symbol?: string }) => item.symbol).filter(Boolean) as string[];
             setVerifiedSymbols(symbols);
             if (!symbols.includes(market)) {
@@ -147,8 +161,8 @@ export default function Home() {
               for (const item of current) merged.set(`${item.epoch}:${item.quote}`, item);
               return [...merged.values()].sort((a, b) => a.epoch - b.epoch).slice(-MAX_TICKS);
             });
-            setConnection("LIVE");
-            setNote("Historical sample loaded. The live subscription is active; new ticks will update the tape.");
+            setConnection("HISTORY LOADED · WAITING FOR LIVE TICK");
+            setNote("Historical sample loaded. Waiting for the first real-time tick before marking the feed LIVE.");
           }
 
           if (message.msg_type === "tick" && message.tick) {
@@ -208,6 +222,7 @@ export default function Home() {
       active = false;
       if (retryTimer) clearTimeout(retryTimer);
       if (pingTimer) clearInterval(pingTimer);
+      if (responseTimer) clearTimeout(responseTimer);
       if (socket && socket.readyState < WebSocket.CLOSING) socket.close(1000, "User disconnected or market changed");
       socketRef.current = null;
     };
@@ -269,6 +284,7 @@ export default function Home() {
         <div><span>LATENCY</span><b>{latency === null ? "—" : `${latency} ms`}</b></div>
         <div><span>LAST TICK</span><b>{ageSeconds === null ? "—" : ageSeconds === 0 ? "JUST NOW" : `${ageSeconds}s AGO`}</b></div>
         <div><span>SYMBOL CHECK</span><b>{verifiedSymbols.includes(market) ? "CONFIRMED" : "PENDING"}</b></div>
+        <div><span>SERVER RESPONSE</span><b>{lastResponse}</b></div>
       </section>
 
       <section className="grid">
