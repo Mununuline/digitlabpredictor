@@ -524,7 +524,7 @@ export default function Home() {
           <div><span>Trigger support</span><b>{aiReview.support}</b></div>
           <div><span>Walk-forward accuracy</span><b>{aiReview.holdoutSamples ? `${aiReview.holdoutAccuracy.toFixed(1)}%` : "—"}</b></div>
           <div><span>95% lower confidence bound</span><b>{aiReview.holdoutSamples ? `${aiReview.lowerBound.toFixed(1)}%` : "—"}</b></div>
-          <div><span>Evaluated unseen predictions</span><b>{aiReview.holdoutSamples}</b></div>
+          <div><span>Trade-eligible holdout predictions</span><b>{aiReview.holdoutSamples}</b></div>
           <div><span>Random baseline</span><b>10.0%</b></div>
           <div><span>Observed lift vs baseline</span><b>{aiReview.holdoutSamples ? `${aiReview.lift.toFixed(2)}×` : "—"}</b></div>
         </div>
