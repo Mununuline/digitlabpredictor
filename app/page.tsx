@@ -120,6 +120,7 @@ export default function Home() {
   const [note, setNote] = useState("Connect to Deriv to load recent ticks and watch new digits arrive.");
   const [connectRequested, setConnectRequested] = useState(false);
   const [lastTickAt, setLastTickAt] = useState<number | null>(null);
+  const [clockNow, setClockNow] = useState(() => Date.now());
   const [latency, setLatency] = useState<number | null>(null);
   const [verifiedSymbols, setVerifiedSymbols] = useState<string[]>([]);
   const [feedError, setFeedError] = useState("");
@@ -129,6 +130,11 @@ export default function Home() {
   const processedTickRef = useRef<string>("");
   const [storageStatus, setStorageStatus] = useState("LOCAL ARCHIVE · LOADING");
   const socketRef = useRef<WebSocket | null>(null);
+
+  useEffect(() => {
+    const timer = setInterval(() => setClockNow(Date.now()), 1000);
+    return () => clearInterval(timer);
+  }, []);
 
   const stats = useMemo(() => summarizeDigits(ticks, 2), [ticks]);
   const latestDigits = useMemo(() => ticks.slice(-30).map(digitOf), [ticks]);
@@ -202,10 +208,20 @@ export default function Home() {
     let retryTimer: ReturnType<typeof setTimeout> | undefined;
     let pingTimer: ReturnType<typeof setInterval> | undefined;
     let responseTimer: ReturnType<typeof setTimeout> | undefined;
+    let liveWatchdog: ReturnType<typeof setTimeout> | undefined;
     let attempts = 0;
     let pingSentAt: number | null = null;
     let streamRequested = false;
     const maxDelay = 30000;
+    const armLiveWatchdog = () => {
+      if (liveWatchdog) clearTimeout(liveWatchdog);
+      liveWatchdog = setTimeout(() => {
+        if (active && socket?.readyState === WebSocket.OPEN) {
+          setFeedError("No live tick has arrived for 20 seconds. Reconnecting to restore the feed.");
+          socket.close(4003, "Live tick timeout");
+        }
+      }, 20000);
+    };
 
     const connect = () => {
       if (!active) return;
@@ -225,7 +241,6 @@ export default function Home() {
 
       socket.onopen = () => {
         if (!active) return;
-        attempts = 0;
         setConnection("CONNECTED · CHECKING MARKETS");
         setNote("Connected. Checking Deriv's active-symbol list before subscribing…");
         socket?.send(JSON.stringify({ ping: 1, req_id: PING_REQ }));
@@ -236,6 +251,7 @@ export default function Home() {
             setFeedError("Deriv WebSocket opened, but no active-symbol response arrived within 8 seconds. This is an API-response timeout, not a market-symbol rejection.");
             setNote("Connection is open but the server has not answered active_symbols. Check the raw response status below.");
             setLastResponse("TIMEOUT · NO active_symbols RESPONSE");
+            socket?.close(4002, "No active-symbol response");
           }
         }, 8000);
         pingTimer = setInterval(() => {
@@ -282,6 +298,7 @@ export default function Home() {
               setNote(`Market ${market} confirmed active. Loading history and starting the live stream…`);
               socket?.send(JSON.stringify({ ticks: market, subscribe: 1, req_id: STREAM_REQ }));
               socket?.send(JSON.stringify({ ticks_history: market, count: MAX_TICKS, end: "latest", style: "ticks", req_id: HISTORY_REQ }));
+              armLiveWatchdog();
             }
           }
 
@@ -322,6 +339,9 @@ export default function Home() {
               return [...next, item].sort((a, b) => a.epoch - b.epoch).slice(-MAX_TICKS);
             });
             setLastTickAt(Date.now());
+            setClockNow(Date.now());
+            attempts = 0;
+            armLiveWatchdog();
             setConnection("LIVE");
             setNote("Receiving real-time ticks from Deriv's public market-data feed.");
           }
@@ -341,6 +361,7 @@ export default function Home() {
 
       socket.onclose = (event) => {
         if (pingTimer) clearInterval(pingTimer);
+        if (liveWatchdog) clearTimeout(liveWatchdog);
         if (!active) return;
         const detail = `Connection closed (code ${event.code}; ${event.reason || "no reason supplied"}; clean: ${event.wasClean ? "yes" : "no"}).`;
         setFeedError(detail);
@@ -365,6 +386,7 @@ export default function Home() {
       if (retryTimer) clearTimeout(retryTimer);
       if (pingTimer) clearInterval(pingTimer);
       if (responseTimer) clearTimeout(responseTimer);
+      if (liveWatchdog) clearTimeout(liveWatchdog);
       if (socket && socket.readyState < WebSocket.CLOSING) socket.close(1000, "User disconnected or market changed");
       socketRef.current = null;
     };
@@ -386,7 +408,7 @@ export default function Home() {
     }
   }
 
-  const ageSeconds = lastTickAt === null ? null : Math.max(0, Math.floor((Date.now() - lastTickAt) / 1000));
+  const ageSeconds = lastTickAt === null ? null : Math.max(0, Math.floor((clockNow - lastTickAt) / 1000));
 
   return (
     <main className="shell">
