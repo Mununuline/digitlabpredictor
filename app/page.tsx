@@ -466,7 +466,7 @@ export default function Home() {
           </div>)}
         </div>
         <p className="muted">{aiReview.explanation}</p>
-        <p className="analysis-footnote">{aiReview.randomnessNote} A high chi-square score, unusual repeat rate or apparent transition can occur by chance, especially across many windows and markets. These diagnostics do not expose or reverse-engineer Deriv's CSPRNG and cannot guarantee the next digit. Three-tick forecasts remain disabled until the one-tick model demonstrates repeatable out-of-sample performance.</p>
+        <p className="analysis-footnote">{aiReview.randomnessNote} A high chi-square score, unusual repeat rate or apparent transition can occur by chance, especially across many windows and markets. These diagnostics do not expose or reverse-engineer Deriv&apos;s CSPRNG and cannot guarantee the next digit. Three-tick forecasts remain disabled until the one-tick model demonstrates repeatable out-of-sample performance.</p>
       </section>
 
       <section className="panel methodology">
