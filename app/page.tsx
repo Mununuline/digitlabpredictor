@@ -256,6 +256,7 @@ export default function Home() {
               pipSize: precisionOf(price, pip),
             })).filter((item) => Number.isFinite(item.quote) && Number.isFinite(item.epoch));
 
+            saveTicks(market, history).then(() => countTicks(market)).then(setStoredTickCount).catch(() => setStorageStatus("LOCAL ARCHIVE · SAVE FAILED"));
             setTicks((current) => {
               const merged = new Map<string, TickPoint>();
               for (const item of history) merged.set(`${item.epoch}:${item.quote}`, item);
@@ -276,6 +277,7 @@ export default function Home() {
               epoch,
               pipSize: precisionOf(raw.quote, Number.isInteger(raw.pip_size) ? raw.pip_size : undefined),
             };
+            saveTicks(market, [item]).then(() => countTicks(market)).then(setStoredTickCount).catch(() => setStorageStatus("LOCAL ARCHIVE · SAVE FAILED"));
             setTicks((current) => {
               const next = current.filter((old) => !(old.epoch === item.epoch && old.quote === item.quote));
               return [...next, item].sort((a, b) => a.epoch - b.epoch).slice(-MAX_TICKS);
