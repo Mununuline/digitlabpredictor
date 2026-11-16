@@ -262,7 +262,7 @@ export default function DemoTradingBots({ review }: Props) {
           const conservativeProbability = proposalContext.lowerBound / 100;
           const breakEven = payout > 0 ? ask / payout : 1;
           const expectedValue = conservativeProbability * payout - ask;
-          setLastEdge(`Conservative estimate ${(conservativeProbability * 100).toFixed(2)}% · break-even ${(breakEven * 100).toFixed(2)}% · expected value ${expectedValue.toFixed(3)} ${accountRef.current.currency}`);
+          setLastEdge(`${proposalContext.symbol} · digit ${proposalContext.candidate} · conservative estimate ${(conservativeProbability * 100).toFixed(2)}% · break-even ${(breakEven * 100).toFixed(2)}% · expected value ${expectedValue.toFixed(3)} ${accountRef.current.currency}`);
           const availableBalance = balanceRef.current;
           const currentStake = stakeRef.current;
           const riskCap = availableBalance === null ? 0 : availableBalance * 0.005;
