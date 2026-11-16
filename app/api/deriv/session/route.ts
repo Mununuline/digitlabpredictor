@@ -18,7 +18,7 @@ export async function GET(request: NextRequest) {
   return NextResponse.json({ connected: true, accounts });
 }
 
-export async function DELETE(request: NextRequest) {
+export async function DELETE() {
   const response = NextResponse.json({ connected: false });
   response.cookies.set(DERIV_SESSION_COOKIE, "", { httpOnly: true, secure: process.env.NODE_ENV === "production", sameSite: "lax", path: "/", maxAge: 0 });
   return response;
