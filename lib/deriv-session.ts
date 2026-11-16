@@ -3,8 +3,8 @@ import { createCipheriv, createDecipheriv, createHash, randomBytes } from "node:
 const COOKIE = "digitlab_deriv_session";
 
 function encryptionKey(): Buffer {
-  const secret = process.env.DERIV_OAUTH_CLIENT_SECRET;
-  if (!secret) throw new Error("Deriv OAuth server secret is not configured");
+  const secret = process.env.DERIV_SESSION_SECRET || process.env.DERIV_OAUTH_CLIENT_SECRET;
+  if (!secret) throw new Error("Deriv session encryption secret is not configured");
   return createHash("sha256").update(secret).digest();
 }
 
