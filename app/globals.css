@@ -93,5 +93,5 @@ footer{display:flex;justify-content:space-between;color:#647386;font-size:9px;le
 .paper-head{color:var(--muted);font-size:8px;letter-spacing:1px}
 .decision-trade{color:var(--lime)}
 .decision-wait{color:#f0bd70}
-.decision-no.trade{color:#f19a9a}
+.decision-no-trade{color:#f19a9a}
 @media(max-width:760px){.paper-summary{grid-template-columns:repeat(2,1fr)}.paper-panel{padding:17px}}
