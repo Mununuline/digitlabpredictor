@@ -47,7 +47,6 @@ export default function DemoTradingBots({ market, ticks, review }: Props) {
   const scannerSocketRef = useRef<WebSocket | null>(null);
   const scannerTicksRef = useRef<Record<string, TickPoint[]>>({});
   const reviewRef = useRef(review);
-  const marketRef = useRef(market);
   const stakeRef = useRef(Number(stake));
   const accountRef = useRef({ accountId, currency });
   const balanceRef = useRef<number | null>(balance);
@@ -65,7 +64,6 @@ export default function DemoTradingBots({ market, ticks, review }: Props) {
     .sort((a, b) => b.review.lowerBound - a.review.lowerBound || b.review.holdoutSamples - a.review.holdoutSamples)[0] || null, [marketScans]);
   useEffect(() => {
     reviewRef.current = bestScan?.review || review;
-    marketRef.current = bestScan?.symbol || "";
   }, [bestScan, review]);
   useEffect(() => { stakeRef.current = Number(stake); }, [stake]);
   useEffect(() => { accountRef.current = { accountId, currency }; }, [accountId, currency]);
@@ -149,6 +147,7 @@ export default function DemoTradingBots({ market, ticks, review }: Props) {
       };
       socket.onmessage = (event) => {
         if (!active) return;
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         let data: any;
         try { data = JSON.parse(event.data); } catch { return; }
         if (data.error) {
