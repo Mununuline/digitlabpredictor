@@ -282,11 +282,13 @@ export default function DemoTradingBots({ review }: Props) {
             return;
           }
           setBotStatus("EXECUTING DEMO CONTRACT");
+          proposalPendingRef.current = true;
           socket.send(JSON.stringify({ buy: proposal.id, price: ask, req_id: 402 }));
           proposalContextRef.current = null;
           setMessage("Proposal passed the conservative edge and risk checks. Submitting one demo contract.");
         }
         if (data.msg_type === "buy" && data.buy) {
+          proposalPendingRef.current = false;
           const id = String(data.buy.contract_id);
           openTradeRef.current = id;
           settledContractRef.current = null;
