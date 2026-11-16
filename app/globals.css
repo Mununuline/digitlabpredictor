@@ -95,3 +95,22 @@ footer{display:flex;justify-content:space-between;color:#647386;font-size:9px;le
 .decision-wait{color:#f0bd70}
 .decision-no-trade{color:#f19a9a}
 @media(max-width:760px){.paper-summary{grid-template-columns:repeat(2,1fr)}.paper-panel{padding:17px}}
+
+.bots-panel{padding:24px;margin-top:20px}
+.bot-agents{display:grid;grid-template-columns:repeat(5,1fr);gap:9px;margin:18px 0}
+.bot-agent{display:flex;flex-direction:column;gap:9px;padding:13px 10px;background:#0b141f;border:1px solid #1c2a39;border-radius:8px;min-width:0}
+.bot-agent span,.bot-settings label{font:9px 'DM Mono',monospace;color:var(--muted);letter-spacing:1px}
+.bot-agent b{font:10px 'DM Mono',monospace;color:var(--cyan);line-height:1.5;overflow-wrap:anywhere}
+.demo-connect-row{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin:16px 0}
+.demo-connect-row select{min-width:220px;flex:1}
+.demo-connected{font:10px 'DM Mono',monospace;color:var(--lime)}
+.secondary-button,.stop-button{border:1px solid #536879;background:#172330;color:var(--text);border-radius:8px;padding:12px 15px;font:10px 'DM Mono',monospace;cursor:pointer}
+.stop-button{background:#351d22;border-color:#8d424b;color:#ffb5b5}
+.primary-button:disabled{opacity:.4;cursor:not-allowed}
+.bot-settings{display:grid;grid-template-columns:1fr 1fr 1.5fr;gap:12px;align-items:end;margin:16px 0}
+.bot-settings label{display:flex;flex-direction:column;gap:8px}
+.bot-settings input{width:100%;background:#0a121c;color:var(--text);border:1px solid #29394a;border-radius:7px;padding:11px;font:13px 'DM Mono',monospace}
+.risk-note{font:9px 'DM Mono',monospace;color:#f0bd70;line-height:1.8;padding:10px;background:#201b14;border:1px solid #59442a;border-radius:7px}
+.bot-status{padding:15px;border:1px solid #29404b;background:#10212a;border-radius:8px;color:var(--cyan);font:500 16px 'DM Mono',monospace;text-align:center;letter-spacing:1px}
+@media(max-width:900px){.bot-agents{grid-template-columns:repeat(3,1fr)}.bot-settings{grid-template-columns:1fr 1fr}.risk-note{grid-column:1/-1}}
+@media(max-width:600px){.bots-panel{padding:17px}.bot-agents{grid-template-columns:repeat(2,1fr)}.bot-settings{grid-template-columns:1fr}.risk-note{grid-column:auto}.demo-connect-row{align-items:stretch;flex-direction:column}.demo-connect-row select{width:100%}}
