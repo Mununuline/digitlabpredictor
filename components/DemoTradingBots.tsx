@@ -139,6 +139,7 @@ export default function DemoTradingBots({ market, ticks, review }: Props) {
         socket.send(JSON.stringify({ balance: 1, subscribe: 1, req_id: 401 }));
       };
       socket.onmessage = (event) => {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         let data: Record<string, any>;
         try { data = JSON.parse(event.data); } catch { return; }
         if (data.error) {
@@ -346,7 +347,7 @@ export default function DemoTradingBots({ market, ticks, review }: Props) {
         <span className="muted">{lastTrade}</span>
       </div>
       <p className="muted" role="status">{message}</p>
-      <p className="analysis-footnote">Latest proposal gate: {lastEdge} The model's lower confidence bound is compared with the quoted break-even probability; historical digit accuracy is not assumed to equal profitability. Daily counters are held in this browser session and must be migrated to durable server-side risk storage before unattended operation. Demo trading only; no real-account WebSocket or real-money order path exists in this component.</p>
+      <p className="analysis-footnote">Latest proposal gate: {lastEdge} The model&apos;s lower confidence bound is compared with the quoted break-even probability; historical digit accuracy is not assumed to equal profitability. Daily counters are held in this browser session and must be migrated to durable server-side risk storage before unattended operation. Demo trading only; no real-account WebSocket or real-money order path exists in this component.</p>
     </section>
   );
 }
