@@ -574,7 +574,7 @@ export default function Home() {
         <p className="analysis-footnote">This ledger is stored locally in this browser and device. The shadow-candidate hit rate measures rejected as well as approved candidates separately. Paper accuracy is not profitability: Deriv contract payout, spread and settlement rules are not simulated here.</p>
       </section>
 
-      <DemoTradingBots market={market} ticks={ticks} review={aiReview} />
+      <DemoTradingBots review={aiReview} />
 
       <section className="panel methodology">
         <div><p className="eyebrow">METHODOLOGY</p><h2>Frequency is not a forecast.</h2></div>
