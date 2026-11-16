@@ -22,6 +22,7 @@ export default function DemoTradingBots({ market, ticks, review }: Props) {
   const [armed, setArmed] = useState(false);
   const [stake, setStake] = useState("0.35");
   const [dailyLossLimit, setDailyLossLimit] = useState("5");
+  const dailyLossLimitRef = useRef(5);
   const [dailyPnl, setDailyPnl] = useState(0);
   const [wins, setWins] = useState(0);
   const [losses, setLosses] = useState(0);
@@ -41,7 +42,8 @@ export default function DemoTradingBots({ market, ticks, review }: Props) {
   const proposalPendingRef = useRef(false);
   const lastTickKeyRef = useRef("");
   const reqIdRef = useRef(400);
-  const dailyRef = useRef({ day: new Date().toISOString().slice(0, 10), pnl: 0, trades: 0, lossesInRow: 0 });
+  const dailyRef = useRef({ day: new Date().toISOString().slice(0, 10), pnl: 0, trades: 0, lossesInRow: 0, wins: 0, losses: 0 });
+  const settledContractRef = useRef<string | null>(null);
 
   useEffect(() => { reviewRef.current = review; }, [review]);
   useEffect(() => { marketRef.current = market; }, [market]);
@@ -49,6 +51,7 @@ export default function DemoTradingBots({ market, ticks, review }: Props) {
   useEffect(() => { accountRef.current = { accountId, currency }; }, [accountId, currency]);
   useEffect(() => { balanceRef.current = balance; }, [balance]);
   useEffect(() => { armedRef.current = armed; }, [armed]);
+  useEffect(() => { dailyLossLimitRef.current = Number(dailyLossLimit); }, [dailyLossLimit]);
   useEffect(() => { openTradeRef.current = openTrade; }, [openTrade]);
 
   const loadSession = useCallback(async () => {
@@ -65,6 +68,20 @@ export default function DemoTradingBots({ market, ticks, review }: Props) {
   }, []);
 
   useEffect(() => {
+    try {
+      const saved = localStorage.getItem("digitlab-demo-risk-v1");
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (parsed.day === dailyRef.current.day) {
+          dailyRef.current = { ...dailyRef.current, ...parsed };
+          setDailyPnl(Number(parsed.pnl) || 0);
+          setTradesToday(Number(parsed.trades) || 0);
+          setConsecutiveLosses(Number(parsed.lossesInRow) || 0);
+          setWins(Number(parsed.wins) || 0);
+          setLosses(Number(parsed.losses) || 0);
+        }
+      }
+    } catch { /* retain safe defaults */ }
     void loadSession().catch((error) => setMessage(error.message));
     const params = new URLSearchParams(window.location.search);
     const code = params.get("code");
@@ -146,11 +163,11 @@ export default function DemoTradingBots({ market, ticks, review }: Props) {
           const availableBalance = balanceRef.current;
           const currentStake = stakeRef.current;
           const riskCap = availableBalance === null ? 0 : availableBalance * 0.005;
-          const lossCap = Number(dailyLossLimit);
+          const lossCap = dailyLossLimitRef.current;
           const canTrade = armedRef.current && reviewRef.current.candidate !== null
             && conservativeProbability > breakEven && expectedValue > 0
             && Number.isFinite(ask) && Number.isFinite(payout) && payout > ask
-            && currentStake > 0 && currentStake <= riskCap
+            && currentStake > 0 && currentStake <= riskCap && currentStake <= Math.max(0, lossCap + dailyRef.current.pnl)
             && dailyRef.current.pnl > -lossCap
             && dailyRef.current.lossesInRow < MAX_CONSECUTIVE_LOSSES
             && dailyRef.current.trades < MAX_TRADES_PER_DAY
@@ -167,6 +184,7 @@ export default function DemoTradingBots({ market, ticks, review }: Props) {
         if (data.msg_type === "buy" && data.buy) {
           const id = String(data.buy.contract_id);
           openTradeRef.current = id;
+          settledContractRef.current = null;
           setOpenTrade(id);
           dailyRef.current.trades += 1;
           setTradesToday(dailyRef.current.trades);
@@ -176,23 +194,30 @@ export default function DemoTradingBots({ market, ticks, review }: Props) {
         }
         if (data.msg_type === "proposal_open_contract" && data.proposal_open_contract) {
           const contract = data.proposal_open_contract;
-          if (contract.is_sold || contract.status === "won" || contract.status === "lost" || contract.status === "sold") {
+          const contractId = String(contract.contract_id || "");
+          if ((contract.is_sold || contract.status === "won" || contract.status === "lost" || contract.status === "sold") && contractId && settledContractRef.current !== contractId) {
+            settledContractRef.current = contractId;
             const profit = Number(contract.profit) || 0;
             dailyRef.current.pnl += profit;
             setDailyPnl(dailyRef.current.pnl);
             if (profit > 0) {
+              dailyRef.current.wins += 1;
               dailyRef.current.lossesInRow = 0;
               setConsecutiveLosses(0);
               setWins((n) => n + 1);
             } else {
+              dailyRef.current.losses += 1;
               dailyRef.current.lossesInRow += 1;
               setConsecutiveLosses(dailyRef.current.lossesInRow);
               setLosses((n) => n + 1);
             }
+            setWins(dailyRef.current.wins);
+            setLosses(dailyRef.current.losses);
+            try { localStorage.setItem("digitlab-demo-risk-v1", JSON.stringify(dailyRef.current)); } catch { /* ignore storage failure */ }
             setLastTrade(`${profit >= 0 ? "WON" : "LOST"} · ${profit.toFixed(2)} ${accountRef.current.currency}`);
             openTradeRef.current = null;
             setOpenTrade(null);
-            if (dailyRef.current.pnl <= -Number(dailyLossLimit) || dailyRef.current.lossesInRow >= MAX_CONSECUTIVE_LOSSES || dailyRef.current.trades >= MAX_TRADES_PER_DAY) {
+            if (dailyRef.current.pnl <= -dailyLossLimitRef.current || dailyRef.current.lossesInRow >= MAX_CONSECUTIVE_LOSSES || dailyRef.current.trades >= MAX_TRADES_PER_DAY) {
               setArmed(false);
               armedRef.current = false;
               setBotStatus("AUTO-STOP · RISK LIMIT");
@@ -259,8 +284,16 @@ export default function DemoTradingBots({ market, ticks, review }: Props) {
     if (balance === null) { setMessage("Waiting for a confirmed demo balance."); return; }
     if (Number(stake) <= 0 || Number(stake) > balance * 0.005) { setMessage("Stake must be no more than 0.5% of demo balance."); return; }
     const today = new Date().toISOString().slice(0, 10);
-    dailyRef.current = { day: today, pnl: 0, trades: 0, lossesInRow: 0 };
-    setDailyPnl(0); setTradesToday(0); setConsecutiveLosses(0); setWins(0); setLosses(0);
+    if (dailyRef.current.day !== today) {
+      dailyRef.current = { day: today, pnl: 0, trades: 0, lossesInRow: 0, wins: 0, losses: 0 };
+      setDailyPnl(0); setTradesToday(0); setConsecutiveLosses(0); setWins(0); setLosses(0);
+      try { localStorage.setItem("digitlab-demo-risk-v1", JSON.stringify(dailyRef.current)); } catch { /* ignore storage failure */ }
+    }
+    if (dailyRef.current.pnl <= -Number(dailyLossLimit) || dailyRef.current.lossesInRow >= MAX_CONSECUTIVE_LOSSES || dailyRef.current.trades >= MAX_TRADES_PER_DAY) {
+      setBotStatus("AUTO-STOP · RISK LIMIT");
+      setMessage("Daily risk stop is active. Do not reset counters to resume trading.");
+      return;
+    }
     lastTickKeyRef.current = "";
     setArmed(true);
     armedRef.current = true;
