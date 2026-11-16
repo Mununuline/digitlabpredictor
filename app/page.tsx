@@ -580,7 +580,7 @@ export default function Home() {
         <div><p className="eyebrow">METHODOLOGY</p><h2>Frequency is not a forecast.</h2></div>
         <p>The live review measures distribution departure, entropy, repeats, streaks, sample drift and the strongest observed one-step digit transition. Transition lift is a hypothesis generator only—not a signal. This first research archive stores timestamped ticks locally in this browser on this device; it is not yet a shared cloud database and will not follow you to another device or browser. Collect up to 1,000 recent ticks per market by selecting it and leaving the feed connected. The scanner evaluates a one-tick candidate with expanding-window walk-forward testing and abstains unless its conservative confidence bound clears the 10% baseline. The browser archive remains local to this device.</p>
       </section>
-      <footer><span>DIGITLAB PREDICTOR</span><span>DERIV PUBLIC MARKET DATA · READ ONLY · PAPER DECISIONS ACTIVE · REAL TRADING DISABLED</span></footer>
+      <footer><span>DIGITLAB PREDICTOR</span><span>DERIV LIVE MARKET DATA · DEMO EXECUTION ENABLED · REAL ACCOUNT BLOCKED</span></footer>
     </main>
   );
 }
