@@ -462,7 +462,8 @@ export default function Home() {
         <div><span>LAST TICK</span><b>{ageSeconds === null ? "—" : ageSeconds === 0 ? "JUST NOW" : `${ageSeconds}s AGO`}</b></div>
         <div><span>SYMBOL CHECK</span><b>{verifiedSymbols.includes(market) ? "CONFIRMED" : "PENDING"}</b></div>
         <div><span>SERVER RESPONSE</span><b>{lastResponse}</b></div>
-        <div><span>RESEARCH ARCHIVE</span><b>{storageStatus}</b></div>\n        <div><span>SAVED TICKS · THIS DEVICE</span><b>{storedTickCount.toLocaleString()}</b></div>
+        <div><span>RESEARCH ARCHIVE</span><b>{storageStatus}</b></div>
+        <div><span>SAVED TICKS · THIS DEVICE</span><b>{storedTickCount.toLocaleString()}</b></div>
       </section>
 
       <section className="grid">
@@ -562,7 +563,7 @@ export default function Home() {
           <div className="paper-row paper-head"><span>TIME</span><span>DECISION</span><span>TRIGGER</span><span>PROPOSED → ACTUAL</span><span>RESULT</span></div>
           {paperLedger.slice(-12).reverse().map((row) => <div className="paper-row" key={row.id}>
             <span>{new Date(row.tickEpoch * 1000).toLocaleTimeString()}</span>
-            <b className={`decision-${row.decision.toLowerCase()}`}>{row.decision}</b>
+            <b className={`decision-${row.decision.toLowerCase().replaceAll(" ", "-")}`}>{row.decision}</b>
             <span>{row.triggerDigit ?? "—"}</span>
             <span>{row.proposedDigit ?? "—"} → {row.outcomeDigit ?? "PENDING"}</span>
             <span>{row.hit === null ? (row.outcomeDigit === null ? "PENDING" : "NOT TRADED") : row.hit ? "HIT" : "MISS"}</span>
