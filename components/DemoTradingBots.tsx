@@ -464,7 +464,7 @@ export default function DemoTradingBots({ review }: Props) {
         <span className="muted">{lastTrade}</span>
       </div>
       <p className="muted" role="status">{message}</p>
-      <p className="analysis-footnote">Latest proposal gate: {lastEdge} The model&apos;s lower confidence bound is compared with the quoted break-even probability; historical digit accuracy is not assumed to equal profitability. Daily risk counters are saved in this browser's local storage, not enforced by Deriv or a server. Do not run unattended until server-side risk storage, reconciliation and fail-safe controls are added. Demo trading only; no real-account WebSocket or real-money order path exists in this component.</p>
+      <p className="analysis-footnote">Latest proposal gate: {lastEdge} The model&apos;s lower confidence bound is compared with the quoted break-even probability; historical digit accuracy is not assumed to equal profitability. Daily risk counters are saved in this browser&apos;s local storage, not enforced by Deriv or a server. Do not run unattended until server-side risk storage, reconciliation and fail-safe controls are added. Demo trading only; no real-account WebSocket or real-money order path exists in this component.</p>
     </section>
   );
 }
