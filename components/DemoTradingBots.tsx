@@ -106,6 +106,7 @@ export default function DemoTradingBots({ market, ticks, review }: Props) {
   }, [loadSession]);
 
   const disconnectDemo = () => {
+    if (openTradeRef.current) { setMessage("An open demo contract is still being monitored. Wait for settlement before disconnecting."); return; }
     setArmed(false);
     armedRef.current = false;
     socketRef.current?.close(1000, "Demo bot stopped");
@@ -188,6 +189,7 @@ export default function DemoTradingBots({ market, ticks, review }: Props) {
           setOpenTrade(id);
           dailyRef.current.trades += 1;
           setTradesToday(dailyRef.current.trades);
+          try { localStorage.setItem("digitlab-demo-risk-v1", JSON.stringify(dailyRef.current)); } catch { /* ignore storage failure */ }
           setLastTrade(`OPEN · #${id}`);
           setBotStatus("DEMO TRADE OPEN");
           socket.send(JSON.stringify({ proposal_open_contract: 1, contract_id: Number(id), subscribe: 1, req_id: 403 }));
@@ -254,7 +256,7 @@ export default function DemoTradingBots({ market, ticks, review }: Props) {
     }
     const currentStake = Number(stake);
     const currentBalance = balance;
-    if (!Number.isFinite(currentStake) || currentStake <= 0 || currentBalance === null || currentStake > currentBalance * 0.005) {
+    if (!Number.isFinite(currentStake) || currentStake <= 0 || currentBalance === null || currentStake > currentBalance * 0.005 || currentStake > Math.max(0, Number(dailyLossLimit) + dailyRef.current.pnl)) {
       setBotStatus("BLOCKED · STAKE LIMIT");
       setMessage("Stake must be positive and no greater than 0.5% of the latest demo balance.");
       return;
