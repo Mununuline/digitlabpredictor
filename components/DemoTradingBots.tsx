@@ -6,7 +6,7 @@ import type { DigitAIReview } from "@/lib/digit-ai";
 import type { TickPoint } from "@/lib/digits";
 
 type DemoAccount = { accountId: string; accountType: "demo"; currency: string; balance: number; status: string };
-type Props = { market: string; ticks: TickPoint[]; review: DigitAIReview };
+type Props = { review: DigitAIReview };
 
 const MAX_CONSECUTIVE_LOSSES = 3;
 const MAX_TRADES_PER_DAY = 8;
@@ -20,7 +20,7 @@ const MARKET_UNIVERSE = [
   { symbol: "1HZ250V", label: "Volatility 250 (1s)" },
 ];
 
-export default function DemoTradingBots({ market, ticks, review }: Props) {
+export default function DemoTradingBots({ review }: Props) {
   const [oauthConnected, setOauthConnected] = useState(false);
   const [accounts, setAccounts] = useState<DemoAccount[]>([]);
   const [accountId, setAccountId] = useState("");
@@ -416,11 +416,21 @@ export default function DemoTradingBots({ market, ticks, review }: Props) {
       <div className="bot-agents">
         {[
           ["MARKET SCOUT", bestScan ? `BEST · ${bestScan.symbol}` : scannerStatus],
-          ["DEEPSCAN AI", review.candidate === null ? "NO VALIDATED EDGE" : `CANDIDATE · DIGIT ${review.candidate}`],
+          ["DEEPSCAN AI", (bestScan?.review || review).candidate === null ? "NO VALIDATED EDGE" : `CANDIDATE · DIGIT ${(bestScan?.review || review).candidate}`],
           ["OPPORTUNITY HUNTER", armed ? "CHECKING PROPOSAL EV" : "STANDBY"],
           ["RISK GUARDIAN", `MAX 0.5% · ${MAX_CONSECUTIVE_LOSSES} LOSSES`],
           ["EXECUTION BOT", openTrade ? "POSITION OPEN" : "DEMO ONLY · ARMED BY USER"],
         ].map(([name, status]) => <div className="bot-agent" key={name}><span>{name}</span><b>{status}</b></div>)}
+      </div>
+      <div className="market-scan-grid">
+        {MARKET_UNIVERSE.map((item) => {
+          const scan = marketScans[item.symbol];
+          return <div className="market-scan-card" key={item.symbol}>
+            <span>{item.label}</span>
+            <b>{scan?.review.candidate === null || !scan ? "NO VALIDATED EDGE" : "DIGIT " + scan.review.candidate}</b>
+            <small>{scan ? scan.ticks.length + " ticks · LCB " + scan.review.lowerBound.toFixed(1) + "%" : "Waiting for feed"}</small>
+          </div>;
+        })}
       </div>
       <div className="demo-connect-row">
         {!oauthConnected ? <button className="primary-button" onClick={() => { window.location.href = "/api/deriv/oauth/start"; }}>CONNECT DERIV ACCOUNT ↗</button> :
