@@ -114,3 +114,9 @@ footer{display:flex;justify-content:space-between;color:#647386;font-size:9px;le
 .bot-status{padding:15px;border:1px solid #29404b;background:#10212a;border-radius:8px;color:var(--cyan);font:500 16px 'DM Mono',monospace;text-align:center;letter-spacing:1px}
 @media(max-width:900px){.bot-agents{grid-template-columns:repeat(3,1fr)}.bot-settings{grid-template-columns:1fr 1fr}.risk-note{grid-column:1/-1}}
 @media(max-width:600px){.bots-panel{padding:17px}.bot-agents{grid-template-columns:repeat(2,1fr)}.bot-settings{grid-template-columns:1fr}.risk-note{grid-column:auto}.demo-connect-row{align-items:stretch;flex-direction:column}.demo-connect-row select{width:100%}}
+
+.market-scan-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin:14px 0 18px}
+.market-scan-card{display:flex;flex-direction:column;gap:7px;padding:11px;background:#0b141f;border:1px solid #1c2a39;border-radius:8px;min-width:0}
+.market-scan-card span,.market-scan-card small{font:8px 'DM Mono',monospace;color:var(--muted);overflow-wrap:anywhere}
+.market-scan-card b{font:12px 'DM Mono',monospace;color:var(--cyan)}
+@media(max-width:760px){.market-scan-grid{grid-template-columns:repeat(2,1fr)}}
