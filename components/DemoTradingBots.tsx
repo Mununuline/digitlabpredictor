@@ -1,6 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { scanDigits } from "@/lib/digit-ai";
 import type { DigitAIReview } from "@/lib/digit-ai";
 import type { TickPoint } from "@/lib/digits";
 
@@ -9,6 +10,15 @@ type Props = { market: string; ticks: TickPoint[]; review: DigitAIReview };
 
 const MAX_CONSECUTIVE_LOSSES = 3;
 const MAX_TRADES_PER_DAY = 8;
+const MARKET_UNIVERSE = [
+  { symbol: "1HZ10V", label: "Volatility 10 (1s)" },
+  { symbol: "1HZ25V", label: "Volatility 25 (1s)" },
+  { symbol: "1HZ50V", label: "Volatility 50 (1s)" },
+  { symbol: "1HZ75V", label: "Volatility 75 (1s)" },
+  { symbol: "1HZ100V", label: "Volatility 100 (1s)" },
+  { symbol: "1HZ150V", label: "Volatility 150 (1s)" },
+  { symbol: "1HZ250V", label: "Volatility 250 (1s)" },
+];
 
 export default function DemoTradingBots({ market, ticks, review }: Props) {
   const [oauthConnected, setOauthConnected] = useState(false);
@@ -31,7 +41,11 @@ export default function DemoTradingBots({ market, ticks, review }: Props) {
   const [openTrade, setOpenTrade] = useState<string | null>(null);
   const [lastTrade, setLastTrade] = useState("NONE");
   const [lastEdge, setLastEdge] = useState("Waiting for a validated signal and a live proposal.");
+  const [marketScans, setMarketScans] = useState<Record<string, { ticks: TickPoint[]; review: DigitAIReview }>>({});
+  const [scannerStatus, setScannerStatus] = useState("CONNECTING TO MARKET SCOUT");
   const socketRef = useRef<WebSocket | null>(null);
+  const scannerSocketRef = useRef<WebSocket | null>(null);
+  const scannerTicksRef = useRef<Record<string, TickPoint[]>>({});
   const reviewRef = useRef(review);
   const marketRef = useRef(market);
   const stakeRef = useRef(Number(stake));
@@ -45,8 +59,14 @@ export default function DemoTradingBots({ market, ticks, review }: Props) {
   const dailyRef = useRef({ day: new Date().toISOString().slice(0, 10), pnl: 0, trades: 0, lossesInRow: 0, wins: 0, losses: 0 });
   const settledContractRef = useRef<string | null>(null);
 
-  useEffect(() => { reviewRef.current = review; }, [review]);
-  useEffect(() => { marketRef.current = market; }, [market]);
+  const bestScan = useMemo(() => Object.entries(marketScans)
+    .map(([symbol, value]) => ({ symbol, ...value }))
+    .filter((item) => item.review.candidate !== null && item.review.holdoutSamples >= 100 && item.review.lowerBound > 10)
+    .sort((a, b) => b.review.lowerBound - a.review.lowerBound || b.review.holdoutSamples - a.review.holdoutSamples)[0] || null, [marketScans]);
+  useEffect(() => {
+    reviewRef.current = bestScan?.review || review;
+    marketRef.current = bestScan?.symbol || "";
+  }, [bestScan, review]);
   useEffect(() => { stakeRef.current = Number(stake); }, [stake]);
   useEffect(() => { accountRef.current = { accountId, currency }; }, [accountId, currency]);
   useEffect(() => { balanceRef.current = balance; }, [balance]);
@@ -104,6 +124,88 @@ export default function DemoTradingBots({ market, ticks, review }: Props) {
         .finally(() => window.history.replaceState({}, "", window.location.pathname));
     }
   }, [loadSession]);
+
+  useEffect(() => {
+    let active = true;
+    let socket: WebSocket | null = null;
+    const historySymbols: Record<number, string> = {};
+    const publicUrl = "wss://api.derivws.com/trading/v1/options/ws/public";
+    const mergeMarketTicks = (symbol: string, incoming: TickPoint[]) => {
+      const merged = new Map<string, TickPoint>();
+      for (const point of scannerTicksRef.current[symbol] || []) merged.set(point.epoch + ":" + point.quote, point);
+      for (const point of incoming) merged.set(point.epoch + ":" + point.quote, point);
+      const next = [...merged.values()].sort((a, b) => a.epoch - b.epoch).slice(-1000);
+      scannerTicksRef.current[symbol] = next;
+      setMarketScans((previous) => ({ ...previous, [symbol]: { ticks: next, review: scanDigits(next) } }));
+    };
+    try {
+      socket = new WebSocket(publicUrl);
+      scannerSocketRef.current = socket;
+      socket.onopen = () => {
+        if (active) {
+          setScannerStatus("CHECKING DERIV ACTIVE SYMBOLS");
+          socket?.send(JSON.stringify({ active_symbols: "brief", req_id: 710 }));
+        }
+      };
+      socket.onmessage = (event) => {
+        if (!active) return;
+        let data: any;
+        try { data = JSON.parse(event.data); } catch { return; }
+        if (data.error) {
+          if (data.req_id === 710) setScannerStatus("ACTIVE-SYMBOL CHECK FAILED");
+          return;
+        }
+        if (data.msg_type === "active_symbols" || (data.req_id === 710 && Array.isArray(data.active_symbols))) {
+          const activeSymbols = new Set((data.active_symbols || []).map((item: { symbol?: string; underlying_symbol?: string }) => item.underlying_symbol || item.symbol).filter(Boolean));
+          const valid = MARKET_UNIVERSE.filter((item) => activeSymbols.has(item.symbol));
+          setScannerStatus("SCANNING " + valid.length + " VERIFIED VOLATILITY MARKETS");
+          valid.forEach((item, index) => {
+            const historyReq = 720 + index;
+            historySymbols[historyReq] = item.symbol;
+            socket?.send(JSON.stringify({ ticks_history: item.symbol, count: 1000, end: "latest", style: "ticks", req_id: historyReq }));
+            socket?.send(JSON.stringify({ ticks: item.symbol, subscribe: 1, req_id: 740 + index }));
+          });
+          return;
+        }
+        if ((data.msg_type === "history" || historySymbols[data.req_id]) && data.history?.prices && data.history?.times) {
+          const symbol = historySymbols[data.req_id];
+          if (!symbol) return;
+          const prices = data.history.prices as (number | string)[];
+          const times = data.history.times as number[];
+          const reportedPip = Number.isInteger(data.pip_size) ? data.pip_size : undefined;
+          const history = prices.map((price, index) => {
+            const raw = String(price);
+            const point = raw.indexOf(".");
+            const pipSize = reportedPip ?? (point < 0 ? 0 : Math.min(10, raw.length - point - 1));
+            return { quote: Number(price), epoch: Number(times[index]), pipSize };
+          }).filter((item) => Number.isFinite(item.quote) && Number.isFinite(item.epoch));
+          mergeMarketTicks(symbol, history);
+          return;
+        }
+        if (data.msg_type === "tick" && data.tick) {
+          const symbol = String(data.tick.symbol || data.echo_req?.ticks || "");
+          if (!MARKET_UNIVERSE.some((item) => item.symbol === symbol)) return;
+          const quote = Number(data.tick.quote);
+          const epoch = Number(data.tick.epoch);
+          if (!Number.isFinite(quote) || !Number.isFinite(epoch)) return;
+          const raw = String(data.tick.quote);
+          const point = raw.indexOf(".");
+          const pipSize = Number.isInteger(data.tick.pip_size) ? data.tick.pip_size : (point < 0 ? 0 : Math.min(10, raw.length - point - 1));
+          mergeMarketTicks(symbol, [{ quote, epoch, pipSize }]);
+          setScannerStatus("LIVE · SCANNING " + Object.keys(scannerTicksRef.current).length + " MARKETS");
+        }
+      };
+      socket.onerror = () => { if (active) setScannerStatus("MARKET SCANNER CONNECTION ERROR"); };
+      socket.onclose = () => { if (active) setScannerStatus("MARKET SCANNER DISCONNECTED"); };
+    } catch {
+      setScannerStatus("MARKET SCANNER UNAVAILABLE");
+    }
+    return () => {
+      active = false;
+      socket?.close(1000, "Market scout stopped");
+      scannerSocketRef.current = null;
+    };
+  }, []);
 
   const disconnectDemo = () => {
     if (openTradeRef.current) { setMessage("An open demo contract is still being monitored. Wait for settlement before disconnecting."); return; }
@@ -245,21 +347,22 @@ export default function DemoTradingBots({ market, ticks, review }: Props) {
   };
 
   useEffect(() => {
-    const latest = ticks[ticks.length - 1];
-    if (!latest || !armed || !wsConnected || !socketRef.current || openTrade || proposalPendingRef.current) return;
-    const key = `${market}:${latest.epoch}:${latest.quote}`;
-    if (lastTickKeyRef.current === key) return;
-    lastTickKeyRef.current = key;
-    const current = review;
-    if (current.candidate === null || current.holdoutSamples < 100 || current.lowerBound <= 10) {
-      setBotStatus("SCANNING · NO QUALIFIED EDGE");
+    if (!armed || !wsConnected || !socketRef.current || openTrade || proposalPendingRef.current) return;
+    if (!bestScan) {
+      setBotStatus("SCANNING · NO VERIFIED CROSS-MARKET EDGE");
       return;
     }
+    const latest = bestScan.ticks[bestScan.ticks.length - 1];
+    if (!latest) return;
+    const key = `${bestScan.symbol}:${latest.epoch}:${latest.quote}`;
+    if (lastTickKeyRef.current === key) return;
+    lastTickKeyRef.current = key;
+    const current = bestScan.review;
     const currentStake = Number(stake);
     const currentBalance = balance;
     if (!Number.isFinite(currentStake) || currentStake <= 0 || currentBalance === null || currentStake > currentBalance * 0.005 || currentStake > Math.max(0, Number(dailyLossLimit) + dailyRef.current.pnl)) {
       setBotStatus("BLOCKED · STAKE LIMIT");
-      setMessage("Stake must be positive and no greater than 0.5% of the latest demo balance.");
+      setMessage("Stake must be positive and no greater than 0.5% of the latest demo balance or remaining daily loss allowance.");
       return;
     }
     if (dailyRef.current.pnl <= -Number(dailyLossLimit) || dailyRef.current.lossesInRow >= MAX_CONSECUTIVE_LOSSES || dailyRef.current.trades >= MAX_TRADES_PER_DAY) {
@@ -269,14 +372,14 @@ export default function DemoTradingBots({ market, ticks, review }: Props) {
       return;
     }
     proposalPendingRef.current = true;
-    setBotStatus("DEEPSCAN · PRICING OPPORTUNITY");
+    setBotStatus("DEEPSCAN · PRICING " + bestScan.symbol);
     const reqId = ++reqIdRef.current;
     socketRef.current.send(JSON.stringify({
       proposal: 1, amount: currentStake, basis: "stake", contract_type: "DIGITMATCH",
       barrier: String(current.candidate), currency, duration: 1, duration_unit: "t",
-      underlying_symbol: market, req_id: reqId,
+      underlying_symbol: bestScan.symbol, req_id: reqId,
     }));
-  }, [ticks, market, review, armed, wsConnected, openTrade, stake, balance, currency, dailyLossLimit]);
+  }, [bestScan, armed, wsConnected, openTrade, stake, balance, currency, dailyLossLimit]);
 
   useEffect(() => () => {
     socketRef.current?.close(1000, "Component unmounted");
@@ -310,10 +413,10 @@ export default function DemoTradingBots({ market, ticks, review }: Props) {
         <div><p className="eyebrow">MULTI-AGENT EXECUTION SYSTEM · PHASE 1</p><h2>AI trading bots · Demo only</h2></div>
         <span className="tag">REAL ACCOUNT BLOCKED</span>
       </div>
-      <p className="muted">Five coordinated agents: Market Scout, DeepScan AI, Opportunity Hunter, Risk Guardian and Execution Bot. The first execution strategy is a one-tick DIGITMATCH demo contract; it must clear the actual proposal break-even rate before any purchase.</p>
+      <p className="muted">Five coordinated agents compare all seven configured Volatility 1-second markets (only symbols Deriv confirms active are scanned). The best validated market is selected automatically. The first execution strategy is a one-tick DIGITMATCH demo contract; it must clear the actual proposal break-even rate before any purchase.</p>
       <div className="bot-agents">
         {[
-          ["MARKET SCOUT", wsConnected ? `MONITORING · ${market}` : "AWAITING LIVE FEED"],
+          ["MARKET SCOUT", bestScan ? `BEST · ${bestScan.symbol}` : scannerStatus],
           ["DEEPSCAN AI", review.candidate === null ? "NO VALIDATED EDGE" : `CANDIDATE · DIGIT ${review.candidate}`],
           ["OPPORTUNITY HUNTER", armed ? "CHECKING PROPOSAL EV" : "STANDBY"],
           ["RISK GUARDIAN", `MAX 0.5% · ${MAX_CONSECUTIVE_LOSSES} LOSSES`],
