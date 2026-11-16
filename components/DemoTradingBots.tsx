@@ -46,7 +46,7 @@ export default function DemoTradingBots({ review }: Props) {
   const socketRef = useRef<WebSocket | null>(null);
   const scannerSocketRef = useRef<WebSocket | null>(null);
   const scannerTicksRef = useRef<Record<string, TickPoint[]>>({});
-  const reviewRef = useRef(review);
+  const proposalContextRef = useRef<{ symbol: string; candidate: number; lowerBound: number; holdoutSamples: number } | null>(null);
   const stakeRef = useRef(Number(stake));
   const accountRef = useRef({ accountId, currency });
   const balanceRef = useRef<number | null>(balance);
@@ -62,9 +62,6 @@ export default function DemoTradingBots({ review }: Props) {
     .map(([symbol, value]) => ({ symbol, ...value }))
     .filter((item) => item.review.candidate !== null && item.review.holdoutSamples >= 100 && item.review.lowerBound > 10)
     .sort((a, b) => b.review.lowerBound - a.review.lowerBound || b.review.holdoutSamples - a.review.holdoutSamples)[0] || null, [marketScans]);
-  useEffect(() => {
-    reviewRef.current = bestScan?.review || review;
-  }, [bestScan, review]);
   useEffect(() => { stakeRef.current = Number(stake); }, [stake]);
   useEffect(() => { accountRef.current = { accountId, currency }; }, [accountId, currency]);
   useEffect(() => { balanceRef.current = balance; }, [balance]);
@@ -245,6 +242,7 @@ export default function DemoTradingBots({ review }: Props) {
         try { data = JSON.parse(event.data); } catch { return; }
         if (data.error) {
           proposalPendingRef.current = false;
+          proposalContextRef.current = null;
           setMessage(data.error.message || "Deriv returned a trading error.");
           if (data.req_id === 401) setBotStatus("DEMO AUTH ERROR");
           return;
@@ -259,7 +257,9 @@ export default function DemoTradingBots({ review }: Props) {
           const proposal = data.proposal;
           const ask = Number(proposal.ask_price);
           const payout = Number(proposal.payout);
-          const conservativeProbability = reviewRef.current.lowerBound / 100;
+          const proposalContext = proposalContextRef.current;
+          if (!proposalContext) { setBotStatus("WAIT · MISSING SCAN CONTEXT"); return; }
+          const conservativeProbability = proposalContext.lowerBound / 100;
           const breakEven = payout > 0 ? ask / payout : 1;
           const expectedValue = conservativeProbability * payout - ask;
           setLastEdge(`Conservative estimate ${(conservativeProbability * 100).toFixed(2)}% · break-even ${(breakEven * 100).toFixed(2)}% · expected value ${expectedValue.toFixed(3)} ${accountRef.current.currency}`);
@@ -267,7 +267,7 @@ export default function DemoTradingBots({ review }: Props) {
           const currentStake = stakeRef.current;
           const riskCap = availableBalance === null ? 0 : availableBalance * 0.005;
           const lossCap = dailyLossLimitRef.current;
-          const canTrade = armedRef.current && reviewRef.current.candidate !== null
+          const canTrade = armedRef.current && proposalContext.holdoutSamples >= 100 && proposalContext.lowerBound > 10
             && conservativeProbability > breakEven && expectedValue > 0
             && Number.isFinite(ask) && Number.isFinite(payout) && payout > ask
             && currentStake > 0 && currentStake <= riskCap && currentStake <= Math.max(0, lossCap + dailyRef.current.pnl)
@@ -276,12 +276,14 @@ export default function DemoTradingBots({ review }: Props) {
             && dailyRef.current.trades < MAX_TRADES_PER_DAY
             && !openTradeRef.current;
           if (!canTrade) {
+            proposalContextRef.current = null;
             setBotStatus("WAIT · RISK / EDGE GATE");
             setMessage("Proposal rejected: the conservative out-of-sample probability must exceed the contract break-even rate, and every risk limit must pass.");
             return;
           }
           setBotStatus("EXECUTING DEMO CONTRACT");
           socket.send(JSON.stringify({ buy: proposal.id, price: ask, req_id: 402 }));
+          proposalContextRef.current = null;
           setMessage("Proposal passed the conservative edge and risk checks. Submitting one demo contract.");
         }
         if (data.msg_type === "buy" && data.buy) {
@@ -371,6 +373,7 @@ export default function DemoTradingBots({ review }: Props) {
       return;
     }
     proposalPendingRef.current = true;
+    proposalContextRef.current = { symbol: bestScan.symbol, candidate: current.candidate as number, lowerBound: current.lowerBound, holdoutSamples: current.holdoutSamples };
     setBotStatus("DEEPSCAN · PRICING " + bestScan.symbol);
     const reqId = ++reqIdRef.current;
     socketRef.current.send(JSON.stringify({
