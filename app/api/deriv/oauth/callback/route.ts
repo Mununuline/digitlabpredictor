@@ -12,8 +12,7 @@ export async function POST(request: NextRequest) {
   }
 
   const clientId = process.env.DERIV_OAUTH_CLIENT_ID;
-  const clientSecret = process.env.DERIV_OAUTH_CLIENT_SECRET;
-  if (!clientId || !clientSecret) return NextResponse.json({ error: "Deriv OAuth credentials are not configured on the server." }, { status: 503 });
+  if (!clientId || !(process.env.DERIV_SESSION_SECRET || process.env.DERIV_OAUTH_CLIENT_SECRET)) return NextResponse.json({ error: "Deriv OAuth server configuration is incomplete." }, { status: 503 });
   const redirectUri = process.env.DERIV_OAUTH_REDIRECT_URI || new URL("/", request.url).toString();
   const form = new URLSearchParams({
     grant_type: "authorization_code",
