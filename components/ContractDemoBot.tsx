@@ -149,6 +149,7 @@ export default function ContractDemoBot({ contract, symbol, scan, latestTick }: 
           setTrades(tradesRef.current);
           setStatus("DEMO TRADE OPEN");
           setLastResult("OPEN · #" + id);
+          try { localStorage.setItem("digitlab-contract-risk-v1:" + contract, JSON.stringify({ day: dayRef.current, pnl: pnlRef.current, trades: tradesRef.current, losses: lossesRef.current, openId: id })); } catch { /* in-memory open contract guard remains active */ }
           socket.send(JSON.stringify({ proposal_open_contract: 1, contract_id: Number(id), subscribe: 1, req_id: 803 }));
         }
         if (data.msg_type === "proposal_open_contract" && data.proposal_open_contract) {
