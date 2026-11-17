@@ -41,10 +41,12 @@ export default function ContractDemoBot({ contract, symbol, scan, latestTick }: 
   const lossesRef = useRef(0);
   const stakeRef = useRef(Number(stake));
   const currencyRef = useRef(currency);
+  const selectedAccountRef = useRef(accountId);
   const dayRef = useRef(new Date().toISOString().slice(0, 10));
 
   useEffect(() => { stakeRef.current = Number(stake); }, [stake]);
   useEffect(() => { currencyRef.current = currency; }, [currency]);
+  useEffect(() => { selectedAccountRef.current = accountId; }, [accountId]);
   useEffect(() => { balanceRef.current = balance; }, [balance]);
   useEffect(() => { armedRef.current = armed; }, [armed]);
 
@@ -55,7 +57,7 @@ export default function ContractDemoBot({ contract, symbol, scan, latestTick }: 
       setOauthConnected(Boolean(data.connected));
       const demo = (data.accounts || []) as DemoAccount[];
       setAccounts(demo);
-      if (demo.length && !accountId) setAccountId(demo[0].accountId);
+      if (demo.length && !selectedAccountRef.current) { selectedAccountRef.current = demo[0].accountId; setAccountId(demo[0].accountId); }
       setMessage(demo.length ? "Demo account available. Select it and connect the demo trading socket." : data.connected ? "No demo account returned. Real accounts are intentionally excluded." : "Deriv is not connected yet. Sign in to load demo accounts.");
     } catch { setMessage("Could not check the Deriv session."); }
   };
@@ -217,7 +219,7 @@ export default function ContractDemoBot({ contract, symbol, scan, latestTick }: 
     <div className="section-heading"><div><p className="eyebrow">CONTRACT-SPECIFIC EXECUTION BOT</p><h2>{contract} · DEMO BOT</h2></div><span className="tag">REAL ACCOUNTS BLOCKED</span></div>
     <p className="muted">This bot trades only the selected contract on a verified Deriv demo account. It never connects to a real-account endpoint.</p>
     {!oauthConnected ? <button className="scan-button" onClick={() => window.open("/api/deriv/oauth/start", "_blank", "noopener,noreferrer")}>CONNECT DERIV ACCOUNT</button> :
-      <div className="bot-connect-row"><select value={accountId} onChange={(e) => setAccountId(e.target.value)}><option value="">Select demo account</option>{accounts.map((a) => <option key={a.accountId} value={a.accountId}>{a.accountId} · {a.currency} · DEMO</option>)}</select>
+      <div className="bot-connect-row"><select value={accountId} onChange={(e) => { selectedAccountRef.current = e.target.value; setAccountId(e.target.value); }}><option value="">Select demo account</option>{accounts.map((a) => <option key={a.accountId} value={a.accountId}>{a.accountId} · {a.currency} · DEMO</option>)}</select>
       <button className="scan-button" onClick={connectDemo} disabled={connected || !accountId}> {connected ? "DEMO CONNECTED" : "CONNECT DEMO BOT"} </button></div>}
     <div className="scan-result-grid">
       <div><span>BOT STATUS</span><b>{status}</b></div><div><span>DEMO BALANCE</span><b>{balance === null ? "—" : balance.toFixed(2) + " " + currency}</b></div>
