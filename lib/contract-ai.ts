@@ -86,9 +86,71 @@ function wins(contract: DigitContractType, digit: number, barrier: number | null
   return false;
 }
 
+function scanMatches(points: TickPoint[], digits: number[]): ContractScan {
+  const empty: ContractScan = {
+    contract: "MATCHES", status: "COLLECTING", decision: "WAIT", barrier: null,
+    predictedWinProbability: 0, baselineProbability: 10, holdoutAccuracy: 0,
+    holdoutSamples: 0, lowerBound: 0, edgeLowerBound: 0, recentAccuracy: 0,
+    recentSamples: 0, wins: 0,
+    reason: "Collect at least 450 ordered ticks. MATCHES needs enough historical examples of the latest digit to evaluate the next-digit prediction.",
+    methodology: "MATCHES-specific conditional next-digit model; expanding walk-forward holdout; Laplace smoothing; Wilson lower bound against the 10% exact-digit baseline.",
+  };
+  if (digits.length < 450) return empty;
+
+  const split = Math.floor((digits.length - 1) * 0.7);
+  const outcomes: boolean[] = [];
+  for (let i = split; i < digits.length - 1; i++) {
+    const counts = Array<number>(10).fill(0);
+    let support = 0;
+    for (let j = 0; j < i; j++) {
+      if (digits[j] === digits[i]) { counts[digits[j + 1]]++; support++; }
+    }
+    if (support < 30) continue;
+    let pick = 0;
+    for (let d = 1; d < 10; d++) if (counts[d] > counts[pick]) pick = d;
+    const probability = (counts[pick] + 1) / (support + 10);
+    if (probability < 0.13) continue;
+    outcomes.push(pick === digits[i + 1]);
+  }
+  const total = outcomes.length;
+  if (!total) return empty;
+  const successes = outcomes.filter(Boolean).length;
+  const hitRate = successes / total * 100;
+  const lower = lowerBound(successes, total);
+  const recent = outcomes.slice(-Math.min(100, total));
+  const recentRate = recent.filter(Boolean).length / recent.length * 100;
+
+  const trigger = digits[digits.length - 1];
+  const counts = Array<number>(10).fill(0);
+  let support = 0;
+  for (let j = 0; j < digits.length - 1; j++) {
+    if (digits[j] === trigger) { counts[digits[j + 1]]++; support++; }
+  }
+  let candidate = 0;
+  for (let d = 1; d < 10; d++) if (counts[d] > counts[candidate]) candidate = d;
+  const probability = support ? (counts[candidate] + 1) / (support + 10) * 100 : 0;
+  const edge = lower - 10;
+  const qualified = total >= MIN_HOLDOUT && support >= 30 && probability >= 13
+    && edge >= 5 && recent.length >= 50 && recentRate >= 10;
+  const pct = (n: number) => n.toFixed(1) + "%";
+  return {
+    contract: "MATCHES", status: qualified ? "RESEARCH_CANDIDATE" : "NO_EDGE",
+    decision: qualified ? "REVIEW CANDIDATE" : "NO TRADE", barrier: candidate,
+    predictedWinProbability: probability, baselineProbability: 10,
+    holdoutAccuracy: hitRate, holdoutSamples: total, lowerBound: lower,
+    edgeLowerBound: edge, recentAccuracy: recentRate, recentSamples: recent.length,
+    wins: successes,
+    reason: qualified
+      ? `MATCHES predicts the next last digit is ${candidate}, conditioned on the latest observed digit ${trigger}. Walk-forward holdout: ${pct(hitRate)} from ${total} eligible tests; Wilson lower bound ${pct(lower)} versus the 10% exact-digit baseline. Candidate only; the live proposal must still pass payout and risk gates.`
+      : `MATCHES currently predicts digit ${candidate} after latest digit ${trigger}, but the evidence gate is not met. Holdout ${pct(hitRate)} from ${total} eligible tests; lower bound ${pct(lower)}; candidate estimate ${pct(probability)}; recent ${pct(recentRate)}. Bot must WAIT.`,
+    methodology: "MATCHES-only next-last-digit forecast: for each historical decision, train a transition row on earlier occurrences of the current trigger digit, select the most frequent next digit, and score only predictions with at least 30 prior examples and 13% smoothed probability. Expanding walk-forward holdout; Wilson lower bound must exceed the 10% exact-digit baseline by at least 5 percentage points. This does not establish future profitability.",
+  };
+}
+
 /** Contract-specific expanding walk-forward evaluation. Every choice at t uses only digits before t. */
 export function scanDigitContract(points: TickPoint[], contract: DigitContractType): ContractScan {
   const digits = points.map((point) => getLastDigit(point.quote, point.pipSize ?? 2));
+  if (contract === "MATCHES") return scanMatches(points, digits);
   const empty: ContractScan = {
     contract, status: "COLLECTING", decision: "WAIT", barrier: null,
     predictedWinProbability: 0, baselineProbability: 0, holdoutAccuracy: 0,
