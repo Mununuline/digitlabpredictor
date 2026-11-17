@@ -131,7 +131,7 @@ export default function ContractDemoBot({ contract, symbol, scan, latestTick }: 
           const currentStake = stakeRef.current;
           const riskCap = currentBalance === null ? 0 : currentBalance * 0.005;
           const allowed = ctx.qualified && ctx.samples >= 100
-            && probability > breakEven && ev > 0 && ask > 0 && payout > ask
+            && probability >= breakEven + 0.05 && ev > 0 && ask > 0 && payout > ask
             && currentStake > 0 && currentStake <= riskCap
             && pnlRef.current > -5 && lossesRef.current < 3 && tradesRef.current < 8;
           setMessage("Proposal check: conservative win estimate " + (probability * 100).toFixed(1) + "% · break-even " + (breakEven * 100).toFixed(1) + "% · expected value " + ev.toFixed(3) + " " + currencyRef.current + ".");
@@ -210,7 +210,7 @@ export default function ContractDemoBot({ contract, symbol, scan, latestTick }: 
     if (Number(stake) <= 0 || Number(stake) > balance * 0.005) { setMessage("Stake must be no more than 0.5% of demo balance."); return; }
     lastTickRef.current = "";
     armedRef.current = true; setArmed(true); setStatus("ARMED · DEMO ONLY");
-    setMessage("Bot armed by you. It will request a proposal only after a fresh tick and will buy only if expected value and all risk gates pass.");
+    setMessage(contract === "MATCHES" ? "MATCHES auto-digit bot armed. It predicts the next last digit from the current trigger digit, then automatically requests and buys qualifying one-tick DIGITMATCH demo contracts when confidence, payout and risk gates pass." : "Bot armed. It will automatically request and buy qualifying demo contracts when confidence, payout and risk gates pass.");
   };
   const disarm = () => { armedRef.current = false; setArmed(false); setStatus(openTrade ? "POSITION MONITORED · DISARMED" : "DISARMED · DEMO ONLY"); setMessage(openTrade ? "New entries stopped. The open contract remains monitored to settlement." : "Bot disarmed."); };
   const disconnect = () => {
@@ -231,7 +231,7 @@ export default function ContractDemoBot({ contract, symbol, scan, latestTick }: 
     </div>
     <label className="stake-control">DEMO STAKE <input type="number" min="0.01" step="0.01" value={stake} onChange={(e) => setStake(e.target.value)} /></label>
     <p className="muted">{message}</p>
-    {armed ? <button className="scan-button danger-button" onClick={disarm}>DISARM BOT</button> : <button className="scan-button" onClick={arm} disabled={!connected || scan.status !== "RESEARCH_CANDIDATE"}>ARM {contract} DEMO BOT</button>} {connected && !openTrade && <button className="scan-button" onClick={disconnect}>DISCONNECT DEMO</button>}
+    {armed ? <button className="scan-button danger-button" onClick={disarm}>DISARM BOT</button> : <button className="scan-button" onClick={arm} disabled={!connected || scan.status !== "RESEARCH_CANDIDATE"}>{contract === "MATCHES" ? "ARM MATCHES AUTO-DIGIT BOT" : `ARM ${contract} DEMO BOT`}</button>} {connected && !openTrade && <button className="scan-button" onClick={disconnect}>DISCONNECT DEMO</button>}
     <p className="analysis-footnote">Risk limits: max 0.5% of balance per stake · daily loss stop 5 account units · stop after 3 consecutive losses · maximum 8 trades per session. These controls are browser-side safeguards, not a guarantee against loss.</p>
   </section>;
 }
