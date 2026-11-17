@@ -120,3 +120,20 @@ footer{display:flex;justify-content:space-between;color:#647386;font-size:9px;le
 .market-scan-card span,.market-scan-card small{font:8px 'DM Mono',monospace;color:var(--muted);overflow-wrap:anywhere}
 .market-scan-card b{font:12px 'DM Mono',monospace;color:var(--cyan)}
 @media(max-width:760px){.market-scan-grid{grid-template-columns:repeat(2,1fr)}}
+
+/* Behayo's precision validator is intentionally distinct from the general scanner. */
+.bot-agents{grid-template-columns:repeat(6,minmax(0,1fr))}
+.behayo-panel{margin:16px 0;padding:16px;border:1px solid #39544f;background:linear-gradient(145deg,#10221f,#0b151c);border-radius:10px}
+.behayo-heading{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:14px}
+.behayo-heading>div{display:flex;flex-direction:column;gap:6px}
+.behayo-heading span{font:9px 'DM Mono',monospace;color:var(--cyan);letter-spacing:1.2px}
+.behayo-heading b{font:700 15px 'DM Mono',monospace;color:var(--lime)}
+.behayo-heading strong{font:10px 'DM Mono',monospace;letter-spacing:.8px}
+.behayo-approved{color:var(--lime)}
+.behayo-hold{color:#f0bd70}
+.behayo-metrics{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin:10px 0}
+.behayo-metrics>div{display:flex;flex-direction:column;gap:7px;padding:11px;background:#09131b;border:1px solid #203b3b;border-radius:7px;min-width:0}
+.behayo-metrics span{font:8px 'DM Mono',monospace;color:var(--muted)}
+.behayo-metrics b{font:14px 'DM Mono',monospace;color:var(--cyan);overflow-wrap:anywhere}
+@media(max-width:900px){.bot-agents{grid-template-columns:repeat(3,1fr)}.behayo-metrics{grid-template-columns:repeat(2,1fr)}}
+@media(max-width:520px){.behayo-heading{align-items:flex-start;flex-direction:column}.behayo-metrics{grid-template-columns:repeat(2,minmax(0,1fr))}}
