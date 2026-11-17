@@ -86,7 +86,7 @@ function wins(contract: DigitContractType, digit: number, barrier: number | null
   return false;
 }
 
-function scanMatches(points: TickPoint[], digits: number[]): ContractScan {
+function scanMatches(digits: number[]): ContractScan {
   const empty: ContractScan = {
     contract: "MATCHES", status: "COLLECTING", decision: "WAIT", barrier: null,
     predictedWinProbability: 0, baselineProbability: 10, holdoutAccuracy: 0,
@@ -150,7 +150,7 @@ function scanMatches(points: TickPoint[], digits: number[]): ContractScan {
 /** Contract-specific expanding walk-forward evaluation. Every choice at t uses only digits before t. */
 export function scanDigitContract(points: TickPoint[], contract: DigitContractType): ContractScan {
   const digits = points.map((point) => getLastDigit(point.quote, point.pipSize ?? 2));
-  if (contract === "MATCHES") return scanMatches(points, digits);
+  if (contract === "MATCHES") return scanMatches(digits);
   const empty: ContractScan = {
     contract, status: "COLLECTING", decision: "WAIT", barrier: null,
     predictedWinProbability: 0, baselineProbability: 0, holdoutAccuracy: 0,
@@ -184,7 +184,7 @@ export function scanDigitContract(points: TickPoint[], contract: DigitContractTy
   const current = choose(digits.slice(0, -1), contract);
   const enough = total >= MIN_HOLDOUT;
   const stable = recent.length >= 50 && recentAccuracy >= baselineProbability - 3;
-  const qualified = enough && edgeLower > 0 && stable;
+  const qualified = enough && edgeLower >= 5 && stable;
 
   const pct = (value: number) => value.toFixed(1) + "%";
   const candidateLabel = current.barrier === null
