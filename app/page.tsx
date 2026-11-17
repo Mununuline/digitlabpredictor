@@ -467,7 +467,7 @@ export default function Home() {
         <div className="trade-type-grid">
           {tradeTypes.map((item) => <article className={activeTradeType === item.id ? "trade-type-card chosen" : "trade-type-card"} key={item.id}>
             <button className="trade-type-select" onClick={() => { setActiveTradeType(item.id); setScanComplete(false); }} aria-pressed={activeTradeType === item.id}><span className="trade-type-icon">{item.icon}</span><span className="trade-type-name">{item.title}</span>{activeTradeType === item.id && <span className="selected-check">✓</span>}</button>
-            <p>{item.subtitle}</p><button className="scan-button" onClick={() => { setActiveTradeType(item.id); setScanComplete(true); }}><span>✦</span> AI DEEP SCAN</button>
+            <p>{item.subtitle}</p><button className="scan-button" onClick={() => { const url = "/scanner?contract=" + item.id + "&symbol=" + market; window.open(url, "_blank", "noopener,noreferrer"); }}><span>✦</span> OPEN AI SCANNER ↗</button>
           </article>)}
         </div>
       </section>
