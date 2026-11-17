@@ -130,6 +130,8 @@ export default function Home() {
   const [paperLedger, setPaperLedger] = useState<PaperDecision[]>([]);
   const processedTickRef = useRef<string>("");
   const [storageStatus, setStorageStatus] = useState("LOCAL ARCHIVE · LOADING");
+  const [activeTradeType, setActiveTradeType] = useState("MATCHES");
+  const [scanComplete, setScanComplete] = useState(false);
   const socketRef = useRef<WebSocket | null>(null);
 
   useEffect(() => {
@@ -424,163 +426,79 @@ export default function Home() {
 
   const ageSeconds = lastTickAt === null ? null : Math.max(0, Math.floor((clockNow - lastTickAt) / 1000));
 
+  const tradeTypes = [
+    { id: "MATCHES", title: "Matches", subtitle: "Predict one exact last digit", icon: "＝" },
+    { id: "DIFFERS", title: "Differs", subtitle: "Predict a different last digit", icon: "≠" },
+    { id: "EVEN", title: "Even", subtitle: "0, 2, 4, 6 or 8", icon: "Ⅱ" },
+    { id: "ODD", title: "Odd", subtitle: "1, 3, 5, 7 or 9", icon: "Ⅰ" },
+    { id: "OVER", title: "Over", subtitle: "Above a selected barrier", icon: "↑" },
+    { id: "UNDER", title: "Under", subtitle: "Below a selected barrier", icon: "↓" },
+  ];
+  const selectedTrade = tradeTypes.find((item) => item.id === activeTradeType)!;
+  const exactDigitEvidence = activeTradeType === "MATCHES" && aiReview.candidate !== null;
+  const scanDecision = !scanComplete ? "READY TO SCAN" : ticks.length < 300 || aiReview.holdoutSamples < 100 ? "WAIT · BUILDING EVIDENCE" : exactDigitEvidence ? "CANDIDATE FOUND · REVIEW REQUIRED" : "WAIT · NO VALIDATED EDGE";
+  const nextPhase = !scanComplete ? "Choose a contract type and tap AI Deep Scan." : exactDigitEvidence ? "Review the proposed digit, out-of-sample evidence and contract break-even before any demo order." : "Keep collecting live ticks. This contract type needs its own validated walk-forward model before it can produce a trade signal.";
+
   return (
-    <main className="shell">
-      <header className="topbar">
-        <Link className="brand" href="/" aria-label="DigitLab Predictor home">
-          <span className="brand-mark">D</span>
-          <span>DIGITLAB <b>PREDICTOR</b><small>DERIV · LAST-DIGIT ANALYSIS</small></span>
-        </Link>
+    <main className="shell clean-dashboard">
+      <header className="topbar clean-topbar">
+        <Link className="brand" href="/" aria-label="DigitLab Predictor home"><span className="brand-mark">D</span><span>DIGITLAB <b>PREDICTOR</b><small>AI DERIV MARKET ANALYSIS</small></span></Link>
         <span className="status"><i /> {connection}</span>
       </header>
-
-      <section className="hero">
-        <div>
-          <p className="eyebrow">RESEARCH-FIRST MARKET INTELLIGENCE</p>
-          <h1>Read the data.<br /><em>Respect the odds.</em></h1>
-          <p className="intro">Transparent last-digit statistics for Deriv synthetic indices. Signals stay off until evidence earns them.</p>
+      <section className="market-strip">
+        <div className="market-strip-heading"><span>SELECT MARKET</span><small>{verifiedSymbols.includes(market) ? "● VERIFIED" : "○ AWAITING FEED"}</small></div>
+        <div className="market-chips" role="group" aria-label="Select synthetic market">
+          {MARKETS.map((item) => <button key={item.symbol} className={market === item.symbol ? "market-chip active" : "market-chip"} onClick={() => { setConnection("CONNECTING"); setTicks([]); setLastTickAt(null); setLatency(null); processedTickRef.current = ""; setMarket(item.symbol); setScanComplete(false); }}>{item.label.replace(" (1s)", "")}</button>)}
         </div>
-        <div className="principle-card">
-          <span>OUR OPERATING PRINCIPLE</span>
-          <strong>Accuracy first.</strong><strong>Selectivity second.</strong><strong>Prediction volume last.</strong>
+        <div className="market-selected"><b>{MARKETS.find((item) => item.symbol === market)?.label}</b><span>{market}</span></div>
+      </section>
+      <section className="quick-status">
+        <div><i className={connection === "LIVE" ? "live-dot" : "idle-dot"} /><span>FEED</span><b>{connection}</b></div>
+        <div><span>LAST TICK</span><b>{ageSeconds === null ? "—" : ageSeconds === 0 ? "NOW" : ageSeconds + "s"}</b></div>
+        <div><span>LATENCY</span><b>{latency === null ? "—" : latency + " ms"}</b></div>
+        <button className="feed-toggle" onClick={toggleFeed}>{connectRequested ? "Stop feed" : "Connect live feed"}</button>
+      </section>
+      {feedError && <p className="feed-error" role="status">{feedError}</p>}
+      <section className="welcome-compact"><div><p className="eyebrow">AI-POWERED TRADE RESEARCH</p><h1>What would you like to analyse?</h1><p>Choose a contract type. DigitLab scans the live sample, tests evidence and guides you to the next step.</p></div><div className="sample-pill"><b>{ticks.length.toLocaleString()}</b><span>LIVE TICKS</span></div></section>
+      <section className="trade-type-section">
+        <div className="compact-section-heading"><div><span>01 · CONTRACT TYPE</span><h2>Choose your trade</h2></div><small>ONE-TAP AI SCAN</small></div>
+        <div className="trade-type-grid">
+          {tradeTypes.map((item) => <article className={activeTradeType === item.id ? "trade-type-card chosen" : "trade-type-card"} key={item.id}>
+            <button className="trade-type-select" onClick={() => { setActiveTradeType(item.id); setScanComplete(false); }} aria-pressed={activeTradeType === item.id}><span className="trade-type-icon">{item.icon}</span><span className="trade-type-name">{item.title}</span>{activeTradeType === item.id && <span className="selected-check">✓</span>}</button>
+            <p>{item.subtitle}</p><button className="scan-button" onClick={() => { setActiveTradeType(item.id); setScanComplete(true); }}><span>✦</span> AI DEEP SCAN</button>
+          </article>)}
         </div>
       </section>
-
-      <section className="controls panel">
-        <div className="field">
-          <label htmlFor="market">MARKET</label>
-          <select id="market" value={market} onChange={(event) => { setConnection("CONNECTING"); setTicks([]); setLastTickAt(null); setLatency(null); processedTickRef.current = ""; setMarket(event.target.value); }}>
-            {MARKETS.map((item) => <option key={item.symbol} value={item.symbol}>{item.label} · {item.symbol}</option>)}
-          </select>
-        </div>
-        <div className="field sample-field"><label>OBSERVATIONS</label><strong>{ticks.length} / {MAX_TICKS}</strong></div>
-        <button className="primary-button" onClick={toggleFeed}>{connectRequested ? "DISCONNECT FEED" : "CONNECT LIVE FEED"} <span>↗</span></button>
+      <section className="ai-next-step panel">
+        <div className="ai-next-header"><div><p className="eyebrow">02 · AI ANALYSIS</p><h2>{selectedTrade.title} scan</h2></div><span className={scanComplete ? "scan-state complete" : "scan-state"}>{scanDecision}</span></div>
+        {!scanComplete ? <p className="muted">Your selected contract is ready. Tap AI Deep Scan to analyse the available market evidence.</p> : <>
+          <div className="scan-result-grid"><div><span>AI DECISION</span><b>{scanDecision}</b></div><div><span>PROPOSED DIGIT</span><b>{activeTradeType === "MATCHES" && aiReview.candidate !== null ? aiReview.candidate : "—"}</b></div><div><span>WALK-FORWARD HIT RATE</span><b>{aiReview.holdoutSamples ? aiReview.holdoutAccuracy.toFixed(1) + "%" : "—"}</b></div><div><span>VALIDATED TESTS</span><b>{aiReview.holdoutSamples}</b></div></div>
+          <div className="next-phase"><span>03 · NEXT PHASE</span><p>{nextPhase}</p></div>
+        </>}
+        <p className="analysis-footnote">AI results are evidence assessments, not guarantees. Matches is currently the only contract type connected to the exact-digit candidate model. Other contract types remain research-only until separately validated. No trade is authorised by this scan alone.</p>
       </section>
-
-      <section className="feed-meta panel">
-        <div><span>FEED</span><b>{connection}</b></div>
-        <div><span>LATENCY</span><b>{latency === null ? "—" : `${latency} ms`}</b></div>
-        <div><span>LAST TICK</span><b>{ageSeconds === null ? "—" : ageSeconds === 0 ? "JUST NOW" : `${ageSeconds}s AGO`}</b></div>
-        <div><span>SYMBOL CHECK</span><b>{verifiedSymbols.includes(market) ? "CONFIRMED" : "PENDING"}</b></div>
-        <div><span>SERVER RESPONSE</span><b>{lastResponse}</b></div>
-        <div><span>RESEARCH ARCHIVE</span><b>{storageStatus}</b></div>
-        <div><span>SAVED TICKS · THIS DEVICE</span><b>{storedTickCount.toLocaleString()}</b></div>
+      <section className="panel live-digits-compact">
+        <div className="compact-section-heading"><div><span>LIVE MARKET</span><h2>Last-digit activity</h2></div><small>{ticks.length} SAMPLED</small></div>
+        <div className="digit-grid">{stats.map((item) => <div className="digit-cell" key={item.digit}><strong>{item.digit}</strong><span>{item.count}</span><div className="bar"><i style={{ width: Math.min(item.frequency * 100, 100) + "%" }} /></div><small>{(item.frequency * 100).toFixed(1)}%</small></div>)}</div>
+        <div className="tape-heading"><span>RECENT DIGITS</span><small>Newest →</small></div>
+        <div className="digit-tape" aria-live="polite">{latestDigits.length ? latestDigits.map((digit, index) => <span className="tape-digit" key={index}>{digit}</span>) : <span className="muted">Connect the live feed to begin.</span>}</div>
       </section>
-
-      <section className="grid">
-        <article className="panel digit-panel">
-          <div className="section-heading">
-            <div><p className="eyebrow">LIVE MARKET SAMPLE</p><h2>Digit distribution</h2></div>
-            <span className="tag">DESCRIPTIVE ONLY</span>
-          </div>
-          <div className="digit-grid">
-            {stats.map((item) => (
-              <div className="digit-cell" key={item.digit}>
-                <strong>{item.digit}</strong><span>{item.count}</span>
-                <div className="bar"><i style={{ width: `${Math.min(item.frequency * 100, 100)}%` }} /></div>
-                <small>{(item.frequency * 100).toFixed(1)}%</small>
-              </div>
-            ))}
-          </div>
-          <p className="muted">{note}</p>
-          {feedError && <p className="feed-error" role="status">{feedError}</p>}
-          <div className="tape-heading"><span>LIVE LAST-DIGIT TAPE</span><small>Newest digit →</small></div>
-          <div className="digit-tape" aria-live="polite">
-            {latestDigits.length ? latestDigits.map((digit, index) => <span className="tape-digit" key={index}>{digit}</span>) : <span className="muted">Waiting for the first market tick…</span>}
-          </div>
-        </article>
-
-        <aside className="panel signal-panel">
-          <p className="eyebrow">LIVE MARKET ANALYSIS</p><h2>Market review</h2>
-          <div className="no-signal">{review.status}</div>
-          <p className="muted">{review.summary}</p>
-          <div className="divider" />
-          <div className="metric"><span>Sample size</span><b>{review.sample} TICKS</b></div>
-          <div className="metric"><span>Uniformity test · χ²</span><b>{review.sample ? review.chiSquare.toFixed(2) : "—"}</b></div>
-          <div className="metric"><span>Largest digit deviation</span><b>{review.sample ? `${review.maxDeviation.toFixed(1)} pp` : "—"}</b></div>
-          <div className="metric"><span>Distribution entropy</span><b>{review.sample ? `${(review.entropy * 100).toFixed(1)}% of max` : "—"}</b></div>
-          <div className="metric"><span>Adjacent repeat rate</span><b>{review.sample > 1 ? `${review.repeatRate.toFixed(1)}%` : "—"}</b></div>
-          <div className="metric"><span>Longest same-digit run</span><b>{review.sample ? review.longestStreak : "—"}</b></div>
-          <div className="metric"><span>Recent-vs-prior shift</span><b>{review.sample >= 500 ? `${review.recentShift.toFixed(1)} pp` : "NEED 500 TICKS"}</b></div>
-          <div className="divider" />
-          <p className="eyebrow">SEQUENCE HYPOTHESIS SCAN</p>
-          <div className="metric"><span>Strongest observed transition</span><b>{review.transitionLabel}</b></div>
-          <div className="metric"><span>Conditional frequency</span><b>{review.transitionSupport >= 30 ? `${(review.transitionProbability * 100).toFixed(1)}%` : "INSUFFICIENT DATA"}</b></div>
-          <div className="metric"><span>Same target&apos;s sample baseline</span><b>{review.transitionSupport >= 30 ? `${(review.transitionBaseline * 100).toFixed(1)}%` : "—"}</b></div>
-          <div className="metric"><span>Observed lift</span><b>{review.transitionSupport >= 30 ? `${review.transitionLift.toFixed(2)}×` : "—"}</b></div>
-          <p className="muted analysis-footnote">The χ² comparison uses a 10% uniform reference (9 degrees of freedom; 16.92 is a conventional 5% reference threshold). The transition scan selects the strongest of 100 in-sample pairs, so apparent lift is especially prone to chance and multiple-testing bias. Neither metric predicts the next digit. Only chronological out-of-sample testing can validate an edge.</p>
-        </aside>
-      </section>
-
-
-      <section className="panel ai-panel">
-        <div className="section-heading">
-          <div><p className="eyebrow">CSPRNG-AWARE · ADAPTIVE STATISTICAL SCANNER</p><h2>One-tick prediction evidence</h2></div>
-          <span className="tag">EXPANDING WALK-FORWARD</span>
-        </div>
-        <div className="ai-status">{aiReview.status}</div>
-        <div className="ai-grid">
-          <div><span>Next-tick candidate</span><b>{aiReview.candidate === null ? "NO SIGNAL" : aiReview.candidate}</b></div>
-          <div><span>Current trigger digit</span><b>{aiReview.triggerDigit === null ? "—" : aiReview.triggerDigit}</b></div>
-          <div><span>Smoothed conditional estimate</span><b>{aiReview.support ? `${aiReview.confidence.toFixed(1)}%` : "—"}</b></div>
-          <div><span>Trigger support</span><b>{aiReview.support}</b></div>
-          <div><span>Walk-forward accuracy</span><b>{aiReview.holdoutSamples ? `${aiReview.holdoutAccuracy.toFixed(1)}%` : "—"}</b></div>
-          <div><span>95% lower confidence bound</span><b>{aiReview.holdoutSamples ? `${aiReview.lowerBound.toFixed(1)}%` : "—"}</b></div>
-          <div><span>Trade-eligible holdout predictions</span><b>{aiReview.holdoutSamples}</b></div>
-          <div><span>Random baseline</span><b>10.0%</b></div>
-          <div><span>Observed lift vs baseline</span><b>{aiReview.holdoutSamples ? `${aiReview.lift.toFixed(2)}×` : "—"}</b></div>
-        </div>
-        <div className="window-heading"><span>ROLLING RANDOMNESS DIAGNOSTICS</span><small>Latest ticks · max 1,000</small></div>
-        <div className="window-grid">
-          {aiReview.windows.map((window) => <div className="window-card" key={window.size}>
-            <b>{window.size.toLocaleString()}</b><small>TICK WINDOW</small>
-            <span>{window.sample} observed</span>
-            <span>χ² {window.sample ? window.chiSquare.toFixed(1) : "—"}</span>
-            <span>Repeat {window.sample > 1 ? `${window.repeatRate.toFixed(1)}%` : "—"}</span>
-            <span>Entropy {window.sample ? `${window.entropy.toFixed(1)}%` : "—"}</span>
-            <em>{window.status}</em>
-          </div>)}
-        </div>
-        <p className="muted">{aiReview.explanation}</p>
-        <p className="analysis-footnote">{aiReview.randomnessNote} A high chi-square score, unusual repeat rate or apparent transition can occur by chance, especially across many windows and markets. These diagnostics do not expose or reverse-engineer Deriv&apos;s CSPRNG and cannot guarantee the next digit. Three-tick forecasts remain disabled until the one-tick model demonstrates repeatable out-of-sample performance.</p>
-      </section>
-
-
-      <section className="panel paper-panel">
-        <div className="section-heading">
-          <div><p className="eyebrow">AUTONOMOUS DECISION ENGINE · SIMULATION ONLY</p><h2>TRADE / WAIT / NO TRADE</h2></div>
-          <span className="tag">REAL ORDERS DISABLED</span>
-        </div>
-        <p className="muted">DigitLab records one decision for each newly observed tick. The following tick settles the prediction. TRADE is a paper-only candidate that passed the current evidence gate; WAIT means insufficient evaluation data; NO TRADE means the gate was not passed. No Deriv contract is submitted.</p>
-        <div className="paper-summary">
-          <div><span>TRADE DECISIONS</span><b>{paperLedger.filter((x) => x.decision === "TRADE").length}</b></div>
-          <div><span>TRADE WINS</span><b>{paperLedger.filter((x) => x.decision === "TRADE" && x.hit === true).length}</b></div>
-          <div><span>TRADE LOSSES</span><b>{paperLedger.filter((x) => x.decision === "TRADE" && x.hit === false).length}</b></div>
-          <div><span>SETTLED TRADE ACCURACY</span><b>{(() => { const done = paperLedger.filter((x) => x.decision === "TRADE" && x.hit !== null); return done.length ? `${(done.filter((x) => x.hit).length / done.length * 100).toFixed(1)}%` : "—"; })()}</b></div>
-          <div><span>SHADOW CANDIDATE HIT RATE</span><b>{(() => { const done = paperLedger.filter((x) => x.proposedDigit !== null && x.outcomeDigit !== null); return done.length ? `${(done.filter((x) => x.proposedDigit === x.outcomeDigit).length / done.length * 100).toFixed(1)}%` : "—"; })()}</b></div>
-          <div><span>WAIT / NO TRADE</span><b>{paperLedger.filter((x) => x.decision !== "TRADE").length}</b></div>
-        </div>
-        <div className="paper-table">
-          <div className="paper-row paper-head"><span>TIME</span><span>DECISION</span><span>TRIGGER</span><span>PROPOSED → ACTUAL</span><span>RESULT</span></div>
-          {paperLedger.slice(-12).reverse().map((row) => <div className="paper-row" key={row.id}>
-            <span>{new Date(row.tickEpoch * 1000).toLocaleTimeString()}</span>
-            <b className={`decision-${row.decision.toLowerCase().replaceAll(" ", "-")}`}>{row.decision}</b>
-            <span>{row.triggerDigit ?? "—"}</span>
-            <span>{row.proposedDigit ?? "—"} → {row.outcomeDigit ?? "PENDING"}</span>
-            <span>{row.hit === null ? (row.outcomeDigit === null ? "PENDING" : "NOT TRADED") : row.hit ? "HIT" : "MISS"}</span>
-          </div>)}
-          {!paperLedger.length && <p className="muted">Waiting for the next live tick to start the paper decision ledger.</p>}
-        </div>
-        <p className="analysis-footnote">This ledger is stored locally in this browser and device. The shadow-candidate hit rate measures rejected as well as approved candidates separately. Paper accuracy is not profitability: Deriv contract payout, spread and settlement rules are not simulated here.</p>
-      </section>
-
-      <DemoTradingBots review={aiReview} />
-
-      <section className="panel methodology">
-        <div><p className="eyebrow">METHODOLOGY</p><h2>Frequency is not a forecast.</h2></div>
-        <p>The live review measures distribution departure, entropy, repeats, streaks, sample drift and the strongest observed one-step digit transition. Transition lift is a hypothesis generator only—not a signal. This first research archive stores timestamped ticks locally in this browser on this device; it is not yet a shared cloud database and will not follow you to another device or browser. Collect up to 1,000 recent ticks per market by selecting it and leaving the feed connected. The scanner evaluates a one-tick candidate with expanding-window walk-forward testing and abstains unless its conservative confidence bound clears the 10% baseline. The browser archive remains local to this device.</p>
-      </section>
-      <footer><span>DIGITLAB PREDICTOR</span><span>DERIV LIVE MARKET DATA · DEMO EXECUTION ENABLED · REAL ACCOUNT BLOCKED</span></footer>
+      <details className="advanced-details"><summary>Advanced AI diagnostics and trading controls <span>Expand</span></summary>
+        <section className="panel signal-panel"><p className="eyebrow">STATISTICAL MARKET REVIEW</p><h2>{review.status}</h2><p className="muted">{review.summary}</p>
+          <div className="metric"><span>Sample size</span><b>{review.sample} TICKS</b></div><div className="metric"><span>Uniformity χ²</span><b>{review.sample ? review.chiSquare.toFixed(2) : "—"}</b></div><div className="metric"><span>Largest digit deviation</span><b>{review.sample ? review.maxDeviation.toFixed(1) + " pp" : "—"}</b></div><div className="metric"><span>Entropy</span><b>{review.sample ? (review.entropy * 100).toFixed(1) + "%" : "—"}</b></div><div className="metric"><span>Adjacent repeat rate</span><b>{review.sample > 1 ? review.repeatRate.toFixed(1) + "%" : "—"}</b></div><div className="metric"><span>Strongest transition</span><b>{review.transitionLabel}</b></div>
+        </section>
+        <section className="panel ai-panel"><div className="section-heading"><div><p className="eyebrow">ADAPTIVE STATISTICAL SCANNER</p><h2>One-tick prediction evidence</h2></div><span className="tag">WALK-FORWARD</span></div><div className="ai-status">{aiReview.status}</div>
+          <div className="ai-grid"><div><span>Next-tick candidate</span><b>{aiReview.candidate ?? "NO SIGNAL"}</b></div><div><span>Trigger digit</span><b>{aiReview.triggerDigit ?? "—"}</b></div><div><span>Conditional estimate</span><b>{aiReview.support ? aiReview.confidence.toFixed(1) + "%" : "—"}</b></div><div><span>Walk-forward accuracy</span><b>{aiReview.holdoutSamples ? aiReview.holdoutAccuracy.toFixed(1) + "%" : "—"}</b></div><div><span>95% lower bound</span><b>{aiReview.holdoutSamples ? aiReview.lowerBound.toFixed(1) + "%" : "—"}</b></div><div><span>Holdout predictions</span><b>{aiReview.holdoutSamples}</b></div></div>
+          <p className="muted">{aiReview.explanation}</p><p className="analysis-footnote">{aiReview.randomnessNote} Statistical deviations do not guarantee the next digit or expose Deriv&apos;s random-number generator.</p>
+        </section>
+        <section className="panel paper-panel"><div className="section-heading"><div><p className="eyebrow">SIMULATION ONLY</p><h2>TRADE / WAIT / NO TRADE ledger</h2></div><span className="tag">REAL ORDERS BLOCKED</span></div>
+          <div className="paper-summary"><div><span>TRADE DECISIONS</span><b>{paperLedger.filter((x) => x.decision === "TRADE").length}</b></div><div><span>TRADE WINS</span><b>{paperLedger.filter((x) => x.decision === "TRADE" && x.hit === true).length}</b></div><div><span>TRADE LOSSES</span><b>{paperLedger.filter((x) => x.decision === "TRADE" && x.hit === false).length}</b></div><div><span>WAIT / NO TRADE</span><b>{paperLedger.filter((x) => x.decision !== "TRADE").length}</b></div></div>
+          <div className="paper-table"><div className="paper-row paper-head"><span>TIME</span><span>DECISION</span><span>TRIGGER</span><span>PROPOSED → ACTUAL</span><span>RESULT</span></div>{paperLedger.slice(-12).reverse().map((row) => <div className="paper-row" key={row.id}><span>{new Date(row.tickEpoch * 1000).toLocaleTimeString()}</span><b className={"decision-" + row.decision.toLowerCase().replaceAll(" ", "-")}>{row.decision}</b><span>{row.triggerDigit ?? "—"}</span><span>{row.proposedDigit ?? "—"} → {row.outcomeDigit ?? "PENDING"}</span><span>{row.hit === null ? "PENDING" : row.hit ? "HIT" : "MISS"}</span></div>)}</div>
+        </section>
+        <DemoTradingBots review={aiReview} />
+        <section className="panel methodology"><p className="eyebrow">METHODOLOGY</p><h2>Frequency is not a forecast.</h2><p>Signals remain research hypotheses until repeatable out-of-sample performance and positive contract expected value are demonstrated. Research and paper records are stored locally on this device.</p></section>
+      </details>
+      <footer><span>DIGITLAB PREDICTOR</span><span>LIVE MARKET DATA · DEMO EXECUTION ONLY · REAL ACCOUNT BLOCKED</span></footer>
     </main>
   );
 }
