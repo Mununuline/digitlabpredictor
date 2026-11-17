@@ -5,7 +5,7 @@ import type { ContractScan, DigitContractType } from "@/lib/contract-ai";
 import type { TickPoint } from "@/lib/digits";
 
 type DemoAccount = { accountId: string; accountType: "demo"; currency: string; balance: number; status: string };
-type Props = { contract: DigitContractType; symbol: string; scan: ContractScan; latestTick: TickPoint | null };
+type Props = { contract: DigitContractType; symbol: string; scan: ContractScan; latestTick: TickPoint | null };\ntype DerivTradeMessage = { error?: { message?: string }; req_id?: number; msg_type?: string; balance?: { balance: number | string; currency?: string }; proposal?: { ask_price: number | string; payout: number | string; id: string }; buy?: { contract_id: string | number }; proposal_open_contract?: { contract_id: string | number; is_sold?: boolean; status?: string; profit?: number | string } };
 
 const CONTRACT_CODE: Record<DigitContractType, string> = {
   MATCHES: "DIGITMATCH", DIFFERS: "DIGITDIFF", EVEN: "DIGITEVEN",
@@ -98,7 +98,7 @@ export default function ContractDemoBot({ contract, symbol, scan, latestTick }: 
         socket.send(JSON.stringify({ balance: 1, subscribe: 1, req_id: 801 }));
       };
       socket.onmessage = (event) => {
-        let data: Record<string, any>;
+        let data: DerivTradeMessage;
         try { data = JSON.parse(event.data); } catch { return; }
         if (data.error) {
           pendingRef.current = false;
@@ -196,7 +196,7 @@ export default function ContractDemoBot({ contract, symbol, scan, latestTick }: 
     pendingRef.current = true;
     setStatus("PRICING · " + symbol);
     socketRef.current.send(JSON.stringify(proposal));
-  }, [armed, connected, latestTick, openTrade, scan, contract, symbol, stake, balance]);
+  }, [armed, connected, latestTick, openTrade, scan, contract, symbol, stake, balance, currency]);
 
   const arm = () => {
     if (!connected || balance === null) { setMessage("Connect a verified demo account and wait for its balance first."); return; }
@@ -225,7 +225,7 @@ export default function ContractDemoBot({ contract, symbol, scan, latestTick }: 
     </div>
     <label className="stake-control">DEMO STAKE <input type="number" min="0.01" step="0.01" value={stake} onChange={(e) => setStake(e.target.value)} /></label>
     <p className="muted">{message}</p>
-    {armed ? <button className="scan-button danger-button" onClick={disarm}>DISARM BOT</button> : <button className="scan-button" onClick={arm} disabled={!connected || scan.status !== "RESEARCH_CANDIDATE"}>ARM {contract} DEMO BOT</button>}
+    {armed ? <button className="scan-button danger-button" onClick={disarm}>DISARM BOT</button> : <button className="scan-button" onClick={arm} disabled={!connected || scan.status !== "RESEARCH_CANDIDATE"}>ARM {contract} DEMO BOT</button>} {connected && !openTrade && <button className="scan-button" onClick={disconnect}>DISCONNECT DEMO</button>}
     <p className="analysis-footnote">Risk limits: max 0.5% of balance per stake · daily loss stop 5 account units · stop after 3 consecutive losses · maximum 8 trades per session. These controls are browser-side safeguards, not a guarantee against loss.</p>
   </section>;
 }
