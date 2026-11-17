@@ -5,7 +5,8 @@ import type { ContractScan, DigitContractType } from "@/lib/contract-ai";
 import type { TickPoint } from "@/lib/digits";
 
 type DemoAccount = { accountId: string; accountType: "demo"; currency: string; balance: number; status: string };
-type Props = { contract: DigitContractType; symbol: string; scan: ContractScan; latestTick: TickPoint | null };\ntype DerivTradeMessage = { error?: { message?: string }; req_id?: number; msg_type?: string; balance?: { balance: number | string; currency?: string }; proposal?: { ask_price: number | string; payout: number | string; id: string }; buy?: { contract_id: string | number }; proposal_open_contract?: { contract_id: string | number; is_sold?: boolean; status?: string; profit?: number | string } };
+type Props = { contract: DigitContractType; symbol: string; scan: ContractScan; latestTick: TickPoint | null };
+type DerivTradeMessage = { error?: { message?: string }; req_id?: number; msg_type?: string; balance?: { balance: number | string; currency?: string }; proposal?: { ask_price: number | string; payout: number | string; id: string }; buy?: { contract_id: string | number }; proposal_open_contract?: { contract_id: string | number; is_sold?: boolean; status?: string; profit?: number | string } };
 
 const CONTRACT_CODE: Record<DigitContractType, string> = {
   MATCHES: "DIGITMATCH", DIFFERS: "DIGITDIFF", EVEN: "DIGITEVEN",
