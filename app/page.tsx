@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { summarizeDigits, type TickPoint } from "@/lib/digits";
 import { scanDigits } from "@/lib/digit-ai";
+import { scanDigitContract, type DigitContractType } from "@/lib/contract-ai";
 import { countTicks, loadTicks, saveTicks } from "@/lib/research-store";
 import { loadPaperLedger, recordPaperDecision, settlePaperDecision, type PaperDecision } from "@/lib/paper-ledger";
 import DemoTradingBots from "@/components/DemoTradingBots";
@@ -143,6 +144,7 @@ export default function Home() {
   const latestDigits = useMemo(() => ticks.slice(-30).map(digitOf), [ticks]);
   const review = useMemo(() => reviewMarket(ticks), [ticks]);
   const aiReview = useMemo(() => scanDigits(ticks), [ticks]);
+  const contractReview = useMemo(() => scanDigitContract(ticks, activeTradeType as DigitContractType), [ticks, activeTradeType]);
   useEffect(() => {
     let active = true;
     const latest = ticks[ticks.length - 1];
@@ -435,9 +437,9 @@ export default function Home() {
     { id: "UNDER", title: "Under", subtitle: "Below a selected barrier", icon: "↓" },
   ];
   const selectedTrade = tradeTypes.find((item) => item.id === activeTradeType)!;
-  const exactDigitEvidence = activeTradeType === "MATCHES" && aiReview.candidate !== null;
-  const scanDecision = !scanComplete ? "READY TO SCAN" : ticks.length < 300 || aiReview.holdoutSamples < 100 ? "WAIT · BUILDING EVIDENCE" : exactDigitEvidence ? "CANDIDATE FOUND · REVIEW REQUIRED" : "WAIT · NO VALIDATED EDGE";
-  const nextPhase = !scanComplete ? "Choose a contract type and tap AI Deep Scan." : exactDigitEvidence ? "Review the proposed digit, out-of-sample evidence and contract break-even before any demo order." : "Keep collecting live ticks. This contract type needs its own validated walk-forward model before it can produce a trade signal.";
+  const candidateText = contractReview.barrier === null ? selectedTrade.title.toUpperCase() : String(contractReview.barrier);
+  const scanDecision = !scanComplete ? "READY TO SCAN" : contractReview.decision === "WAIT" ? "WAIT · BUILDING EVIDENCE" : contractReview.decision === "REVIEW CANDIDATE" ? "RESEARCH CANDIDATE · REVIEW REQUIRED" : "NO TRADE · EDGE NOT VERIFIED";
+  const nextPhase = !scanComplete ? "Choose a contract type and tap AI Deep Scan." : contractReview.status === "RESEARCH_CANDIDATE" ? "Next: inspect the selected barrier, unseen test results and current Deriv proposal. Only consider a demo trade if the proposal's break-even probability is below the conservative estimated win probability." : "No trade. Keep collecting fresh ticks and let the independent walk-forward test run again. Do not lower the evidence threshold to force a signal.";
 
   return (
     <main className="shell clean-dashboard">
@@ -472,10 +474,21 @@ export default function Home() {
       <section className="ai-next-step panel">
         <div className="ai-next-header"><div><p className="eyebrow">02 · AI ANALYSIS</p><h2>{selectedTrade.title} scan</h2></div><span className={scanComplete ? "scan-state complete" : "scan-state"}>{scanDecision}</span></div>
         {!scanComplete ? <p className="muted">Your selected contract is ready. Tap AI Deep Scan to analyse the available market evidence.</p> : <>
-          <div className="scan-result-grid"><div><span>AI DECISION</span><b>{scanDecision}</b></div><div><span>PROPOSED DIGIT</span><b>{activeTradeType === "MATCHES" && aiReview.candidate !== null ? aiReview.candidate : "—"}</b></div><div><span>WALK-FORWARD HIT RATE</span><b>{aiReview.holdoutSamples ? aiReview.holdoutAccuracy.toFixed(1) + "%" : "—"}</b></div><div><span>VALIDATED TESTS</span><b>{aiReview.holdoutSamples}</b></div></div>
+          <div className="scan-result-grid">
+            <div><span>AI DECISION</span><b>{scanDecision}</b></div>
+            <div><span>SELECTED {activeTradeType === "EVEN" || activeTradeType === "ODD" ? "OUTCOME" : "BARRIER"}</span><b>{candidateText}</b></div>
+            <div><span>MODEL WIN PROBABILITY</span><b>{contractReview.predictedWinProbability ? contractReview.predictedWinProbability.toFixed(1) + "%" : "—"}</b></div>
+            <div><span>UNSEEN HIT RATE</span><b>{contractReview.holdoutSamples ? contractReview.holdoutAccuracy.toFixed(1) + "%" : "—"}</b></div>
+            <div><span>CONTRACT BASELINE</span><b>{contractReview.baselineProbability ? contractReview.baselineProbability.toFixed(1) + "%" : "—"}</b></div>
+            <div><span>LOWER CONFIDENCE BOUND</span><b>{contractReview.holdoutSamples ? contractReview.lowerBound.toFixed(1) + "%" : "—"}</b></div>
+            <div><span>EDGE ABOVE BASELINE</span><b>{contractReview.holdoutSamples ? (contractReview.edgeLowerBound >= 0 ? "+" : "") + contractReview.edgeLowerBound.toFixed(1) + " pp" : "—"}</b></div>
+            <div><span>UNSEEN TESTS</span><b>{contractReview.holdoutSamples}</b></div>
+          </div>
           <div className="next-phase"><span>03 · NEXT PHASE</span><p>{nextPhase}</p></div>
+          <p className="muted contract-reason">{contractReview.reason}</p>
+          <p className="analysis-footnote">{contractReview.methodology}</p>
         </>}
-        <p className="analysis-footnote">AI results are evidence assessments, not guarantees. Matches is currently the only contract type connected to the exact-digit candidate model. Other contract types remain research-only until separately validated. No trade is authorised by this scan alone.</p>
+        <p className="analysis-footnote">Each contract type now has its own event definition, candidate selection and walk-forward benchmark. The scan is not a payout-adjusted profitability test: a research candidate is not a trade instruction, and no order is authorised by this scan.</p>
       </section>
       <section className="panel live-digits-compact">
         <div className="compact-section-heading"><div><span>LIVE MARKET</span><h2>Last-digit activity</h2></div><small>{ticks.length} SAMPLED</small></div>
