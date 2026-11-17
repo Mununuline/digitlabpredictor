@@ -70,7 +70,8 @@ export default function ContractDemoBot({ contract, symbol, scan, latestTick }: 
         const saved = JSON.parse(raw) as { day?: string; pnl?: number; trades?: number; losses?: number; openId?: string };
         if (saved.day === today) {
           pnlRef.current = Number(saved.pnl) || 0; tradesRef.current = Number(saved.trades) || 0; lossesRef.current = Number(saved.losses) || 0;
-          setDailyPnl(pnlRef.current); setTrades(tradesRef.current); setLossStreak(lossesRef.current);\n          if (saved.openId) { openRef.current = saved.openId; setOpenTrade(saved.openId); }
+          setDailyPnl(pnlRef.current); setTrades(tradesRef.current); setLossStreak(lossesRef.current);
+          if (saved.openId) { openRef.current = saved.openId; setOpenTrade(saved.openId); }
         } else localStorage.setItem("digitlab-contract-risk-v1:" + contract, JSON.stringify({ day: today, pnl: 0, trades: 0, losses: 0, openId: saved.openId || "" }));
       }
       dayRef.current = today;
@@ -98,7 +99,8 @@ export default function ContractDemoBot({ contract, symbol, scan, latestTick }: 
         setConnected(true);
         setStatus("CONNECTED · DISARMED");
         setMessage("Demo trading connection is ready. The bot will not trade until you explicitly arm it.");
-        socket.send(JSON.stringify({ balance: 1, subscribe: 1, req_id: 801 }));\n        if (openRef.current) socket.send(JSON.stringify({ proposal_open_contract: 1, contract_id: Number(openRef.current), subscribe: 1, req_id: 805 }));
+        socket.send(JSON.stringify({ balance: 1, subscribe: 1, req_id: 801 }));
+        if (openRef.current) socket.send(JSON.stringify({ proposal_open_contract: 1, contract_id: Number(openRef.current), subscribe: 1, req_id: 805 }));
       };
       socket.onmessage = (event) => {
         let data: DerivTradeMessage;
