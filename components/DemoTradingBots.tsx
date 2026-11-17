@@ -482,7 +482,7 @@ export default function DemoTradingBots({ review }: Props) {
       <div className="demo-connect-row">
         {!oauthConnected ? <button className="primary-button" onClick={() => { window.location.href = "/api/deriv/oauth/start"; }}>CONNECT DERIV ACCOUNT ↗</button> :
           <><span className="demo-connected">DERIV OAUTH CONNECTED</span><select value={accountId} onChange={(e) => { setAccountId(e.target.value); const a = accounts.find((x) => x.accountId === e.target.value); if (a) setCurrency(a.currency); }} aria-label="Select demo account">
-            {accounts.map((a) => <option key={a.accountId} value={a.accountId}>{a.accountId} · DEMO · {a.currency} {a.balance.toFixed(2)}</option>)}
+            {accounts.map((a) => <option key={a.accountId} value={a.accountId}>{a.accountId} · DEMO · {a.currency} {Number(a.balance ?? 0).toFixed(2)}</option>)}
           </select>
           {!wsConnected ? <button className="primary-button" onClick={() => void connectDemo()}>CONNECT DEMO EXECUTION</button> : <button className="secondary-button" onClick={disconnectDemo}>DISCONNECT DEMO</button>}</>}
       </div>
