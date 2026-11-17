@@ -20,6 +20,22 @@ const MARKET_UNIVERSE = [
   { symbol: "1HZ250V", label: "Volatility 250 (1s)" },
 ];
 
+const BEHAYO_TARGET_WIN_RATE = 95;
+const BEHAYO_MIN_HOLDOUT = 100;
+// Bonferroni-style family-wise adjustment for scanning up to seven markets.
+const BEHAYO_Z_SCORE = 2.45;
+
+function adjustedWilsonLower(accuracyPercent: number, sampleSize: number): number {
+  if (!sampleSize) return 0;
+  const z = BEHAYO_Z_SCORE;
+  const p = Math.min(1, Math.max(0, accuracyPercent / 100));
+  const denominator = 1 + (z * z) / sampleSize;
+  const centre = p + (z * z) / (2 * sampleSize);
+  const margin = z * Math.sqrt((p * (1 - p) + (z * z) / (4 * sampleSize)) / sampleSize);
+  return Math.max(0, ((centre - margin) / denominator) * 100);
+}
+
+
 export default function DemoTradingBots({ review }: Props) {
   const [oauthConnected, setOauthConnected] = useState(false);
   const [accounts, setAccounts] = useState<DemoAccount[]>([]);
@@ -58,10 +74,22 @@ export default function DemoTradingBots({ review }: Props) {
   const dailyRef = useRef({ day: new Date().toISOString().slice(0, 10), pnl: 0, trades: 0, lossesInRow: 0, wins: 0, losses: 0 });
   const settledContractRef = useRef<string | null>(null);
 
-  const bestScan = useMemo(() => Object.entries(marketScans)
-    .map(([symbol, value]) => ({ symbol, ...value }))
-    .filter((item) => item.review.candidate !== null && item.review.holdoutSamples >= 100 && item.review.lowerBound > 10)
-    .sort((a, b) => b.review.lowerBound - a.review.lowerBound || b.review.holdoutSamples - a.review.holdoutSamples)[0] || null, [marketScans]);
+  const rankedScans = useMemo(() => Object.entries(marketScans)
+    .map(([symbol, value]) => ({
+      symbol,
+      ...value,
+      behayoLowerBound: adjustedWilsonLower(value.review.holdoutAccuracy, value.review.holdoutSamples),
+    }))
+    .filter((item) => item.review.candidate !== null && item.review.holdoutSamples >= BEHAYO_MIN_HOLDOUT)
+    .sort((a, b) => b.behayoLowerBound - a.behayoLowerBound || b.review.holdoutAccuracy - a.review.holdoutAccuracy || b.review.holdoutSamples - a.review.holdoutSamples), [marketScans]);
+  const bestScan = rankedScans.find((item) => item.review.lowerBound > 10) || null;
+  const behayoScan = rankedScans[0] || null;
+  const behayoQualified = Boolean(
+    behayoScan &&
+    behayoScan.review.holdoutSamples >= BEHAYO_MIN_HOLDOUT &&
+    behayoScan.review.holdoutAccuracy >= BEHAYO_TARGET_WIN_RATE &&
+    behayoScan.behayoLowerBound >= BEHAYO_TARGET_WIN_RATE
+  );
   useEffect(() => { stakeRef.current = Number(stake); }, [stake]);
   useEffect(() => { accountRef.current = { accountId, currency }; }, [accountId, currency]);
   useEffect(() => { balanceRef.current = balance; }, [balance]);
@@ -351,16 +379,16 @@ export default function DemoTradingBots({ review }: Props) {
 
   useEffect(() => {
     if (!armed || !wsConnected || !socketRef.current || openTrade || proposalPendingRef.current) return;
-    if (!bestScan) {
-      setBotStatus("SCANNING · NO VERIFIED CROSS-MARKET EDGE");
+    if (!behayoQualified || !behayoScan) {
+      setBotStatus("BEHAYO HOLD · 95% GATE NOT MET");
       return;
     }
-    const latest = bestScan.ticks[bestScan.ticks.length - 1];
+    const latest = behayoScan.ticks[behayoScan.ticks.length - 1];
     if (!latest) return;
-    const key = `${bestScan.symbol}:${latest.epoch}:${latest.quote}`;
+    const key = `BEHAYO:${behayoScan.symbol}:${latest.epoch}:${latest.quote}`;
     if (lastTickKeyRef.current === key) return;
     lastTickKeyRef.current = key;
-    const current = bestScan.review;
+    const current = behayoScan.review;
     const currentStake = Number(stake);
     const currentBalance = balance;
     if (!Number.isFinite(currentStake) || currentStake <= 0 || currentBalance === null || currentStake > currentBalance * 0.005 || currentStake > Math.max(0, Number(dailyLossLimit) + dailyRef.current.pnl)) {
@@ -375,15 +403,15 @@ export default function DemoTradingBots({ review }: Props) {
       return;
     }
     proposalPendingRef.current = true;
-    proposalContextRef.current = { symbol: bestScan.symbol, candidate: current.candidate as number, lowerBound: current.lowerBound, holdoutSamples: current.holdoutSamples };
-    setBotStatus("DEEPSCAN · PRICING " + bestScan.symbol);
+    proposalContextRef.current = { symbol: behayoScan.symbol, candidate: current.candidate as number, lowerBound: behayoScan.behayoLowerBound, holdoutSamples: current.holdoutSamples };
+    setBotStatus("BEHAYO DEEPSCAN · PRICING " + behayoScan.symbol);
     const reqId = ++reqIdRef.current;
     socketRef.current.send(JSON.stringify({
       proposal: 1, amount: currentStake, basis: "stake", contract_type: "DIGITMATCH",
       barrier: String(current.candidate), currency, duration: 1, duration_unit: "t",
-      underlying_symbol: bestScan.symbol, req_id: reqId,
+      underlying_symbol: behayoScan.symbol, req_id: reqId,
     }));
-  }, [bestScan, armed, wsConnected, openTrade, stake, balance, currency, dailyLossLimit]);
+  }, [behayoScan, behayoQualified, armed, wsConnected, openTrade, stake, balance, currency, dailyLossLimit]);
 
   useEffect(() => () => {
     socketRef.current?.close(1000, "Component unmounted");
@@ -425,7 +453,21 @@ export default function DemoTradingBots({ review }: Props) {
           ["OPPORTUNITY HUNTER", armed ? "CHECKING PROPOSAL EV" : "STANDBY"],
           ["RISK GUARDIAN", `MAX 0.5% · ${MAX_CONSECUTIVE_LOSSES} LOSSES`],
           ["EXECUTION BOT", openTrade ? "POSITION OPEN" : "DEMO ONLY · ARMED BY USER"],
+          ["BEHAYO · 95% TARGET", behayoQualified ? "PRECISION GATE PASSED" : "DEEP SCAN · HOLD"],
         ].map(([name, status]) => <div className="bot-agent" key={name}><span>{name}</span><b>{status}</b></div>)}
+      </div>
+      <div className="behayo-panel">
+        <div className="behayo-heading">
+          <div><span>BEHAYO · INDEPENDENT DEEP-SCAN BOT</span><b>95% WIN-RATE TARGET</b></div>
+          <strong className={behayoQualified ? "behayo-approved" : "behayo-hold"}>{behayoQualified ? "VALIDATION PASSED" : "NOT YET VALIDATED"}</strong>
+        </div>
+        <div className="behayo-metrics">
+          <div><span>BEST SCANNED MARKET</span><b>{behayoScan?.symbol || "SCANNING"}</b></div>
+          <div><span>WALK-FORWARD HIT RATE</span><b>{behayoScan ? behayoScan.review.holdoutAccuracy.toFixed(1) + "%" : "—"}</b></div>
+          <div><span>ADJUSTED LOWER BOUND</span><b>{behayoScan ? behayoScan.behayoLowerBound.toFixed(1) + "%" : "—"}</b></div>
+          <div><span>UNSEEN TEST OPPORTUNITIES</span><b>{behayoScan?.review.holdoutSamples ?? 0}</b></div>
+        </div>
+        <p className="muted">Behayo scans the verified Volatility markets and applies a stricter multi-market-adjusted confidence test. The 95% figure is a target, not a guaranteed result. Behayo blocks execution until both the observed walk-forward hit rate and its adjusted confidence lower bound reach 95% on at least 100 eligible unseen predictions. No qualifying evidence means no trade.</p>
       </div>
       <div className="market-scan-grid">
         {MARKET_UNIVERSE.map((item) => {
@@ -445,6 +487,8 @@ export default function DemoTradingBots({ review }: Props) {
           {!wsConnected ? <button className="primary-button" onClick={() => void connectDemo()}>CONNECT DEMO EXECUTION</button> : <button className="secondary-button" onClick={disconnectDemo}>DISCONNECT DEMO</button>}</>}
       </div>
       <div className="ai-grid">
+        <div><span>BEHAYO SETTLED WIN RATE</span><b>{wins + losses ? (wins / (wins + losses) * 100).toFixed(1) + "%" : "NO CLOSED TRADES"}</b></div>
+        <div><span>BEHAYO DEMO WINS / LOSSES</span><b>{wins} / {losses}</b></div>
         <div><span>DEMO BALANCE</span><b>{balance === null ? "—" : `${currency} ${balance.toFixed(2)}`}</b></div>
         <div><span>DAILY DEMO P/L</span><b>{dailyPnl >= 0 ? "+" : ""}{dailyPnl.toFixed(2)} {currency}</b></div>
         <div><span>DEMO WINS / LOSSES</span><b>{wins} / {losses}</b></div>
