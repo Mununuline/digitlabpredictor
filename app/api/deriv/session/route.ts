@@ -13,7 +13,7 @@ export async function GET(request: NextRequest) {
   const data = await response.json().catch(() => ({})) as { data?: Array<{ account_id: string; account_type: string; currency: string; balance: number; status?: string }> ; errors?: Array<{ message?: string }> };
   if (!response.ok) return NextResponse.json({ connected: false, error: data.errors?.[0]?.message || "Could not retrieve Deriv accounts." }, { status: response.status });
   const accounts = (data.data || []).filter((account) => account.account_type === "demo").map((account) => ({
-    accountId: account.account_id, accountType: "demo", currency: account.currency, balance: account.balance, status: account.status || "active",
+    accountId: account.account_id, accountType: "demo", currency: account.currency || "USD", balance: Number(account.balance) || 0, status: account.status || "active",
   }));
   return NextResponse.json({ connected: true, accounts });
 }
