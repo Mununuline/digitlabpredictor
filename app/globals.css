@@ -178,3 +178,27 @@ footer{display:flex;justify-content:space-between;color:#647386;font-size:9px;le
 .advanced-details>.panel{margin:12px;border:1px solid var(--line)}.clean-dashboard footer{margin-top:18px}
 @media(min-width:680px){.trade-type-grid{grid-template-columns:repeat(3,minmax(0,1fr))}.scan-result-grid{grid-template-columns:repeat(4,minmax(0,1fr))}}
 @media(max-width:520px){.clean-dashboard{padding:10px}.quick-status{gap:10px}.quick-status>div{font-size:8px}.feed-toggle{width:100%;margin:2px 0 0}.welcome-compact{align-items:flex-start}.sample-pill{min-width:68px}.trade-type-grid{gap:8px}.trade-type-card{padding:10px}.trade-type-name{font-size:14px}.trade-type-card p{font-size:10px}.scan-button{padding:10px 5px;font-size:10px}.ai-next-header{align-items:flex-start;flex-direction:column}.scan-state{text-align:left}}
+
+
+.contract-scanner-page { max-width: 1040px; margin: 0 auto; padding-bottom: 40px; }
+.scanner-config-row { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px; margin:14px 0; }
+.scanner-config-row label,.stake-control { display:flex; flex-direction:column; gap:7px; color:var(--muted,#718096); font-size:11px; font-weight:800; letter-spacing:.08em; }
+.scanner-config-row select,.bot-connect-row select,.stake-control input { width:100%; min-height:44px; border:1px solid rgba(120,140,160,.25); border-radius:12px; padding:10px 12px; background:rgba(255,255,255,.06); color:inherit; font:inherit; }
+.scanner-confidence-panel h1 { margin:4px 0 0; font-size:clamp(21px,4vw,30px); }
+.confidence-hero { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px; margin:18px 0; }
+.confidence-hero>div { display:flex; flex-direction:column; gap:7px; border:1px solid rgba(90,160,140,.22); border-radius:16px; padding:18px; background:rgba(25,170,130,.055); }
+.confidence-hero span,.scan-result-grid span { font-size:10px; letter-spacing:.07em; color:var(--muted,#718096); font-weight:800; }
+.confidence-hero strong { font-size:clamp(28px,6vw,42px); line-height:1.1; }
+.confidence-hero small { font-size:11px; color:var(--muted,#718096); }
+.bot-connect-row { display:grid; grid-template-columns:minmax(0,1fr) auto; gap:10px; align-items:center; margin:14px 0; }
+.contract-bot-panel .scan-result-grid { margin:16px 0; }
+.contract-bot-panel .scan-result-grid>div { min-width:0; }
+.contract-bot-panel .scan-result-grid b { overflow-wrap:anywhere; }
+.stake-control { max-width:220px; margin:12px 0; }
+.danger-button { background:#a83232 !important; }
+.scan-button:disabled { opacity:.45; cursor:not-allowed; }
+@media(max-width:600px) {
+ .scanner-config-row,.confidence-hero { grid-template-columns:1fr; }
+ .bot-connect-row { grid-template-columns:1fr; }
+ .contract-scanner-page { padding-left:12px; padding-right:12px; }
+}
