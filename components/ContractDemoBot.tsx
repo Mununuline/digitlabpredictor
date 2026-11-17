@@ -34,7 +34,7 @@ export default function ContractDemoBot({ contract, symbol, scan, latestTick }: 
   const openRef = useRef("");
   const pendingRef = useRef(false);
   const lastTickRef = useRef("");
-  const contextRef = useRef<{ barrier: number | null; lower: number; samples: number; symbol: string } | null>(null);
+  const contextRef = useRef<{ barrier: number | null; lower: number; samples: number; symbol: string; qualified: boolean } | null>(null);
   const pnlRef = useRef(0);
   const tradesRef = useRef(0);
   const lossesRef = useRef(0);
@@ -109,7 +109,7 @@ export default function ContractDemoBot({ contract, symbol, scan, latestTick }: 
           const currentBalance = balanceRef.current;
           const currentStake = stakeRef.current;
           const riskCap = currentBalance === null ? 0 : currentBalance * 0.005;
-          const allowed = ctx.samples >= 100 && scan.status === "RESEARCH_CANDIDATE"
+          const allowed = ctx.qualified && ctx.samples >= 100
             && probability > breakEven && ev > 0 && ask > 0 && payout > ask
             && currentStake > 0 && currentStake <= riskCap
             && pnlRef.current > -5 && lossesRef.current < 3 && tradesRef.current < 8;
@@ -170,7 +170,7 @@ export default function ContractDemoBot({ contract, symbol, scan, latestTick }: 
     if (pnlRef.current <= -5 || lossesRef.current >= 3 || tradesRef.current >= 8) {
       armedRef.current = false; setArmed(false); setStatus("AUTO-STOP · RISK LIMIT"); return;
     }
-    contextRef.current = { barrier: scan.barrier, lower: scan.lowerBound, samples: scan.holdoutSamples, symbol };
+    contextRef.current = { barrier: scan.barrier, lower: scan.lowerBound, samples: scan.holdoutSamples, symbol, qualified: scan.status === "RESEARCH_CANDIDATE" };
     const proposal: Record<string, unknown> = {
       proposal: 1, amount, basis: "stake", contract_type: CONTRACT_CODE[contract],
       currency, duration: 1, duration_unit: "t", underlying_symbol: symbol, subscribe: 1, req_id: 804,
