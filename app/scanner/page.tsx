@@ -15,7 +15,9 @@ const MARKETS = [
 const CONTRACTS: DigitContractType[] = ["MATCHES", "DIFFERS", "EVEN", "ODD", "OVER", "UNDER"];
 const WS = "wss://api.derivws.com/trading/v1/options/ws/public";
 
-type ScannerMessage = { error?: { message?: string }; msg_type?: string; history?: { prices?: Array<number | string>; times?: number[]; pip_size?: number }; tick?: { quote: number | string; epoch: number; pip_size?: number } };\n\nfunction getPrecision(value: number | string, reported?: number): number {
+type ScannerMessage = { error?: { message?: string }; msg_type?: string; history?: { prices?: Array<number | string>; times?: number[]; pip_size?: number }; tick?: { quote: number | string; epoch: number; pip_size?: number } };
+
+function getPrecision(value: number | string, reported?: number): number {
   if (Number.isInteger(reported) && reported! >= 0 && reported! <= 10) return reported!;
   const s = String(value), i = s.indexOf(".");
   return i < 0 ? 0 : Math.min(10, s.length - i - 1);
