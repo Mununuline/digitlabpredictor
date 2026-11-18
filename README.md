@@ -1,70 +1,63 @@
-# Digit Radar
+# DigitLab Predictor
 
-A trading workspace for Deriv digit contracts on the synthetic volatility indices: market scans, a trade journal, and rule-following robots that run on paper or on your Deriv account.
+DigitLab Predictor is a Next.js App Router application for research-first last-digit analysis on Deriv synthetic indices.
 
-## What it does
+## Current architecture
 
-- **Scan**: pick a market, tap Scan on a contract card (Matches, Differs, Even, Odd, Over, Under) and get a decision digit with a strength rating.
-- **Trade**: manual Matches/Differs. Digits shown with their share of recent ticks (green most often, red least, cream latest tick), target digit, 1/2/5/10 ticks, stake and a max loss that locks trading when reached. Paper or your Deriv account.
-- **Robots**: connect a Deriv account, pick a strategy (Adaptive, Differs Guard, Even/Odd Lean, Over/Under Barrier, Matches Hunter), set limits, press Start. A deep scan ranks all ten volatility markets. Auto market mode moves the robot to the best-ranked one and rescans every 5 minutes.
-- **Analysis, Journal, Setup**: distribution and skew tests, break-even economics, paper test, a journal that compares your results with luck, and an optional Claude analyst.
+- Next.js 15 App Router with React 19.
+- Public Deriv market WebSocket for tick history and live market observations.
+- Deriv OAuth 2.0 Authorization Code + PKCE for account authentication.
+- Encrypted, HTTP-only session cookie; OAuth access tokens are not stored in browser JavaScript.
+- Demo accounts only: the account API filters for Deriv accounts explicitly marked `demo`.
+- Demo trading credentials are issued through the authenticated Deriv options OTP endpoint and the browser verifies the returned WebSocket path is the demo endpoint before connecting.
+- Separate contract scanner and demo bot components for Matches, Differs, Even, Odd, Over and Under.
+- Research decisions are not guarantees of future outcomes. No win rate is promised.
 
-## Deep scan and Matches
+## Run locally
 
-- Reads up to 5000 ticks per market from Deriv's public feed (no login needed), or streams all ten markets live so rescans are instant.
-- The Matches deep scan tests the most frequent digit in every market against a threshold that allows for comparing 100 digit-market pairs, checks that the digit still stands out in a half of the data it was not chosen from, and replays "pick the hot digit of the previous 500 ticks" across the whole history to get an out-of-sample hit rate against the 10.5% break-even.
-- For random digits, expect "None" almost everywhere. A real edge would pass again on a later scan.
+Use Node.js 20 or newer.
 
-## Honest limits
-
-- The last digit of a Deriv synthetic index is random. Nothing here predicts it, and no win rate is promised.
-- Deriv pays slightly less than fair odds, so rule-following loses a small amount on average. Robots limit the cost; they do not remove it.
-- Adaptive re-tests every rule on recent ticks and **sits out when none beats break-even**. That is the adaptation, and it is most of the time.
-- Stakes are fixed. There is no martingale or recovery staking. Stop loss, target profit, max consecutive losses and max trades are always on.
-- Stop and loss limits run in your browser tab. Closing the tab stops the robot, but an already open contract still settles at Deriv.
-- The Deriv connection was tested against a mock of Deriv's API, not the live service. Start on demo and read the connection log (Robots, Deriv account).
-
-## Run it
-
-Node 18 or newer, nothing to install:
-
-```
-cp .env.example .env     # fill it in
-npm start                # http://localhost:3000
+```bash
+npm install
+npm run dev
 ```
 
-## Connect Deriv
+## Required Vercel environment variables
 
-1. In your Deriv account, register an app to get an app id, and create an API token with **Read and Trade scopes only**. Never tick Payments or Admin.
-2. Set in `.env` or your host: `APP_PASSWORD` (required for trading), `DERIV_API_TOKEN`, `DERIV_APP_ID`, `DERIV_ACCOUNT_DEMO`.
-3. Find your account ids: `curl -H "x-app-password: YOURPASSWORD" https://YOURSITE/api/deriv/accounts`.
-4. Open Robots, enter the password at the top, choose Demo account, Connect.
+Configure these in Vercel Project Settings → Environment Variables:
 
-The token never reaches the browser. The server trades only through a one-time connection URL.
+- `DERIV_OAUTH_CLIENT_ID`
+- `DERIV_OAUTH_CLIENT_SECRET` (only if required by your Deriv OAuth app configuration)
+- `DERIV_OAUTH_REDIRECT_URI` — currently `https://deriv-digit-lab-kappa.vercel.app/`
+- `DERIV_SESSION_SECRET` — a long random secret used to encrypt the server-side session cookie
 
-**Real money is off by default.** To allow it you must set `DERIV_ALLOW_REAL=1` and `DERIV_ACCOUNT_REAL` on the server, then tick the confirmation box and tap Start twice in the page. `MAX_STAKE` (default 10) caps every trade.
+The app also supports using `DERIV_OAUTH_CLIENT_SECRET` as the session-encryption fallback if `DERIV_SESSION_SECRET` is not set. Keep all secrets server-side. Never add a Deriv API token to the browser or commit secrets to GitHub.
 
-Optional: `ANTHROPIC_API_KEY` turns on the analyst.
+## Deriv sign-in flow
 
-## Put it online with Vercel (no GitHub needed)
+1. The app sends the user to `/api/deriv/oauth/start`.
+2. The server creates a random OAuth state and PKCE verifier and stores them in short-lived HTTP-only cookies.
+3. Deriv redirects to the configured redirect URI.
+4. The app posts the authorization code and state to `/api/deriv/oauth/callback`.
+5. The server verifies state, exchanges the code, and stores the access token in an encrypted HTTP-only cookie.
+6. `/api/deriv/session` returns demo accounts only.
+7. `/api/deriv/otp` verifies the selected account is demo before returning a one-time demo WebSocket URL.
 
-From the unzipped folder, in a terminal (Node 18+):
+## Build checks
 
+```bash
+npm run typecheck
+npm run lint
+npm run build
 ```
-npx vercel          # log in when asked, accept the defaults, creates the project
-npx vercel --prod   # publishes it
-```
 
-Then in the Vercel dashboard, open the project, go to Settings, Environment Variables, and add `APP_PASSWORD`, `DERIV_API_TOKEN`, `DERIV_APP_ID`, `DERIV_ACCOUNT_DEMO` (and optionally `ANTHROPIC_API_KEY`). Run `npx vercel --prod` once more so they take effect.
+## Trading safety
 
-On Vercel each request may run on a fresh server, so the failed-password lockout and rate limits are best-effort. Use a long `APP_PASSWORD`.
+- Real-account selection and real-account WebSocket endpoints are not supported by the app's demo bot routes.
+- Demo bots remain disarmed until the user explicitly arms them.
+- Trade proposals are checked against the scanner's conservative estimate and risk limits before a demo purchase is submitted.
+- Statistical confidence is not a guarantee of profit. Synthetic-index last digits may be effectively random; do not assume historical frequencies predict the next tick.
 
-## Put it online elsewhere
+## Deployment
 
-Render (`render.yaml`), Railway, Fly.io, or Docker (`Dockerfile`). Set the environment variables above in the host's dashboard. Always set `APP_PASSWORD` before sharing the link.
-
-## Files
-
-- `server.js`: static site, analyst proxy, Deriv one-time-connection and account routes.
-- `public/index.html`: the whole app.
-- `.env.example`, `Dockerfile`, `render.yaml`.
+The project is connected to Vercel through GitHub. Pushes to the repair branch should create a Preview deployment. Test the preview before merging or promoting anything to production.
