@@ -1,8 +1,28 @@
 {
-  "name": "digit-radar",
+  "name": "digitlab-predictor",
   "version": "1.0.0",
-  "description": "Deriv digit statistics dashboard with an AI risk analyst",
   "private": true,
-  "scripts": { "start": "node server.js" },
-  "engines": { "node": ">=18" }
+  "description": "DigitLab Predictor using the supplied Digit Radar dashboard and demo-only Deriv OAuth.",
+  "scripts": {
+    "dev": "node scripts/prepare-digit-radar.mjs && next dev",
+    "build": "node scripts/prepare-digit-radar.mjs && next build",
+    "start": "next start",
+    "lint": "eslint .",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "next": "15.5.29",
+    "react": "19.1.0",
+    "react-dom": "19.1.0"
+  },
+  "devDependencies": {
+    "@eslint/eslintrc": "^3.3.1",
+    "@types/node": "^22.15.30",
+    "@types/react": "^19.1.8",
+    "@types/react-dom": "^19.1.7",
+    "eslint": "^9.34.0",
+    "eslint-config-next": "15.5.29",
+    "typescript": "^5.9.2"
+  },
+  "engines": { "node": "22.x" }
 }
