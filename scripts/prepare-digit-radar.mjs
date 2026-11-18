@@ -86,5 +86,7 @@ html = html.replaceAll("Choose Deriv account to trade for real.", "Connect your 
 html = html.replaceAll("This robot will place real trades on your real account.", "This robot will place trades on your Deriv demo account only.");
 html = html.replaceAll("REAL money", "DEMO");
 html = html.replaceAll("real money", "demo account");
+if (!html.includes('</html>')) throw new Error('Dashboard HTML closing tag missing');
+html = html.replace('</html>', "<script>(function(){var q=new URLSearchParams(location.search),code=q.get(\"code\"),state=q.get(\"state\"),err=q.get(\"error\");if(err){alert(q.get(\"error_description\")||err);history.replaceState({},\"\",location.pathname);return;}if(!code||!state)return;history.replaceState({},\"\",location.pathname);fetch(\"/api/deriv/oauth/callback\",{method:\"POST\",headers:{\"content-type\":\"application/json\"},body:JSON.stringify({code:code,state:state})}).then(async function(r){var d=await r.json().catch(function(){return {};});if(!r.ok)throw new Error(d.error||\"Deriv sign-in failed.\");location.reload();}).catch(function(e){alert(e.message||\"Deriv sign-in failed.\");});})();</script>\n</html>");
 writeFileSync(htmlPath, html);
 console.log("Prepared DigitLab Predictor dashboard from the supplied Digit Radar archive.");
